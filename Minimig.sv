@@ -158,15 +158,16 @@ wire [15:0] io_din;
 
 wire [21:0] gamma_bus;
 
-// S Z C YX BA UDLR  * Fix splitter for 2 players version
+// S Z C YX BA UDLR  * For NS version (without splitter) comment then 2nd line and uncomment the 3th line)
 wire [15:0] JOY0 = {joydb9md_1[7],joydb9md_1[11],joydb9md_1[5],joydb9md_1[10],joydb9md_1[9], joydb9md_1[4],joydb9md_1[6],joydb9md_1[3:0]} | JOY0_USB;
 wire [15:0] JOY1 = {joydb9md_2[7],joydb9md_2[11],joydb9md_2[5],joydb9md_2[10],joydb9md_2[9], joydb9md_2[4],joydb9md_2[6],joydb9md_2[3:0]} | JOY1_USB;
+//wire [15:0] JOY1 = JOY1_USB;
 
 reg [15:0] joydb9md_1,joydb9md_2;
 joy_db9md joy_db9md
 (
-  //.clk       ( clk_sys    ), //35-50MHz
-  .clk       ( CLK_VIDEO  ), 
+  .clk       ( clk_sys    ), //35-50MHz
+  //.clk       ( CLK_VIDEO  ), 
   .joy_split ( joy_split  ),
   .joy_mdsel ( joy_mdsel  ),
   .joy_in    ( joy_in     ),
@@ -183,7 +184,7 @@ hps_io_minimig #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.JOY0(JOY0_USB),
 	.JOY1(JOY1_USB),
 	//.joy_raw({joydb9md_1[4],joydb9md_1[6],joydb9md_1[3:0]}), //Menu Dirs, A:Action B:Back (OSD)
-	.joy_raw({joydb9md_1[5],joydb9md_1[11],joydb9md_1[3:0]}), //Menu Dirs, A:Action B:Back (OSD)
+	.joy_raw({joydb9md_1[5],joydb9md_1[11],joydb9md_1[3:0]}), //Menu Dirs, Z:Action C:Back (OSD)
 	.IO_STROBE(io_strobe),
 	.IO_DIN(io_din),
 	.UIO_ENA(io_uio),
