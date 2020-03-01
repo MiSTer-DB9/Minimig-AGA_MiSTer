@@ -13,4 +13,4 @@ Start + C-> Show OSD menu
 	Z-> Enter
 	C-> Esc
 
-In this particular core, as it is not possible to add options to the core menu without modifying the firmware, there are two versions of Minimig: "NS" is the single-port version (without splitter).
+In this particular core, as it is not possible to add options to the core menu without modifying the firmware, there are two versions of Minimig in releases: "NS" is the single-port version (without splitter).
