@@ -85,6 +85,7 @@ module sys_top
 	output		  AUDIO_L,
 	output		  AUDIO_R,
 	output		  AUDIO_SPDIF,
+	output	     BUZZER,
 
 	//////////// SDIO ///////////
 	inout   [3:0] SDIO_DAT,
@@ -102,11 +103,11 @@ module sys_top
 
 	////////// I/O ALT /////////
 	//output        SD_SPI_CS,
-	input         SD_SPI_MISO,
-	output        SD_SPI_CLK,
-	output        SD_SPI_MOSI,
+	//input         SD_SPI_MISO,
+	//output        SD_SPI_CLK,
+	//output        SD_SPI_MOSI,
 
-	inout         SDCD_SPDIF,
+	//inout         SDCD_SPDIF,
 	output        IO_SCL,
 	inout         IO_SDA,
 
@@ -130,33 +131,33 @@ module sys_top
 );
 
 //////////////////////  Secondary SD  ///////////////////////////////////
-wire SD_CS, SD_CLK, SD_MOSI;
+// wire SD_CS, SD_CLK, SD_MOSI;
 
-`ifdef ARCADE_SYS
-	assign SD_CS   = 1'bZ;
-	assign SD_CLK  = 1'bZ;
-	assign SD_MOSI = 1'bZ;
-`else
-	`ifndef DUAL_SDRAM
-		wire sd_miso = SW[3] | SDIO_DAT[0];
-	`else
-		wire sd_miso = 1;
-	`endif
-	wire SD_MISO = mcp_sdcd ? sd_miso : SD_SPI_MISO;
-`endif
+// `ifdef ARCADE_SYS
+// 	assign SD_CS   = 1'bZ;
+// 	assign SD_CLK  = 1'bZ;
+// 	assign SD_MOSI = 1'bZ;
+// `else
+// 	`ifndef DUAL_SDRAM
+// 		wire sd_miso = SW[3] | SDIO_DAT[0];
+// 	`else
+// 		wire sd_miso = 1;
+// 	`endif
+// 	wire SD_MISO = mcp_sdcd ? sd_miso : SD_SPI_MISO;
+// `endif
 
-`ifndef DUAL_SDRAM
-	assign SDIO_DAT[2:1]= 2'bZZ;
-	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
-	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
-	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
-	//assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
-`else
-	//assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
-`endif
+// `ifndef DUAL_SDRAM
+// 	assign SDIO_DAT[2:1]= 2'bZZ;
+// 	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
+// 	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
+// 	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
+// 	//assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
+// `else
+// 	//assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
+// `endif
 
-assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ : SD_CLK;
-assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
+// assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ : SD_CLK;
+// assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
 
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
@@ -1275,6 +1276,7 @@ emu emu
 	.AUDIO_L(audio_ls),
 	.AUDIO_R(audio_rs),
 	.AUDIO_S(audio_s),
+	.BUZZER(BUZZER),
 
 `ifdef USE_DDRAM
 	.DDRAM_CLK(ram_clk),

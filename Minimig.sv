@@ -50,6 +50,8 @@ module emu
 	// b[0]: osd button
 	output  [1:0] BUTTONS,
 	
+	output		 BUZZER,		  // Salida para Altavoz
+	
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
 	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
@@ -158,7 +160,7 @@ wire [15:0] io_din;
 
 wire [21:0] gamma_bus;
 
-// S Z C YX BA UDLR  * For NS version (without splitter) comment then 2nd line and uncomment the 3th line)
+// S Z C YX BA UDLR  * For NS version (no splitter) comment then 2nd line and uncomment the 3th line)
 wire [15:0] JOY0 = {joydb9md_1[7],joydb9md_1[11],joydb9md_1[5],joydb9md_1[10],joydb9md_1[9], joydb9md_1[4],joydb9md_1[6],joydb9md_1[3:0]} | JOY0_USB;
 wire [15:0] JOY1 = {joydb9md_2[7],joydb9md_2[11],joydb9md_2[5],joydb9md_2[10],joydb9md_2[9], joydb9md_2[4],joydb9md_2[6],joydb9md_2[3:0]} | JOY1_USB;
 //wire [15:0] JOY1 = JOY1_USB;
@@ -491,6 +493,8 @@ minimig minimig
 	.dsr          (UART_DSR         ), // RS232 Data Set Ready
 	.cd           (UART_DSR         ), // RS232 Carrier Detect
 	.ri           (1                ), // RS232 Ring Indicator
+
+	.drv_snd      (BUZZER),            //PIN DEL BUZZER
 
 	//I/O
 	._joy1        (~JOY0            ), // joystick 1 [fire4,fire3,fire2,fire,up,down,left,right] (default mouse port)

@@ -50,10 +50,18 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO
 #============================================================
 # SDIO_CD or SPDIF_OUT
 #============================================================
-set_location_assignment PIN_AH7 -to SDCD_SPDIF
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDCD_SPDIF
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDCD_SPDIF
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDCD_SPDIF
+#set_location_assignment PIN_AH7 -to SDCD_SPDIF
+#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDCD_SPDIF
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDCD_SPDIF
+#set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDCD_SPDIF
+
+#============================================================
+# BUZZER
+#============================================================
+set_location_assignment PIN_AH7 -to BUZZER
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to BUZZER
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BUZZER
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to BUZZER
 
 #============================================================
 # SDRAM
