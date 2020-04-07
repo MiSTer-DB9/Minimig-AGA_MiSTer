@@ -50,6 +50,8 @@ module emu
 	// b[0]: osd button
 	output  [1:0] BUTTONS,
 	
+	output		 BUZZER,		  // Salida para Altavoz
+	
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
 	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
@@ -103,14 +105,23 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
+	output	USER_OSD,
+	output	USER_MODE,
+	input	[7:0] USER_IN,
+	output	[7:0] USER_OUT,
 
 	input         OSD_STATUS
 );
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+
+wire   joy_split, joy_mdsel;
+wire   [5:0] joy_in = {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]};
+assign USER_OUT  =  {3'b111,joy_split,3'b111,joy_mdsel};
+assign USER_MODE = 2'b01;
+assign USER_OSD  = joydb9md_1[7] & joydb9md_1[5];
+
+
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign BUTTONS = 0;
 
@@ -124,8 +135,8 @@ localparam CONF_STR = {
 	"V,v",`BUILD_DATE
 };
 
-wire [15:0] JOY0;
-wire [15:0] JOY1;
+wire [15:0] JOY0_USB;
+wire [15:0] JOY1_USB;
 wire [15:0] JOY2;
 wire [15:0] JOY3;
 wire  [7:0] KBD_MOUSE_DATA;
@@ -149,18 +160,39 @@ wire [15:0] io_din;
 
 wire [21:0] gamma_bus;
 
+// S Z C YX BA UDLR  * For NS version (no splitter) comment then 2nd line and uncomment the 3th line)
+wire [15:0] JOY0 = {joydb9md_1[7],joydb9md_1[11],joydb9md_1[5],joydb9md_1[10],joydb9md_1[9], joydb9md_1[4],joydb9md_1[6],joydb9md_1[3:0]} | JOY0_USB;
+wire [15:0] JOY1 = {joydb9md_2[7],joydb9md_2[11],joydb9md_2[5],joydb9md_2[10],joydb9md_2[9], joydb9md_2[4],joydb9md_2[6],joydb9md_2[3:0]} | JOY1_USB;
+//wire [15:0] JOY1 = JOY1_USB;
+
+reg [15:0] joydb9md_1,joydb9md_2;
+joy_db9md joy_db9md
+(
+  .clk       ( clk_sys    ), //35-50MHz
+  //.clk       ( CLK_VIDEO  ), 
+  .joy_split ( joy_split  ),
+  .joy_mdsel ( joy_mdsel  ),
+  .joy_in    ( joy_in     ),
+  .joystick1 ( joydb9md_1 ),
+  .joystick2 ( joydb9md_2 ),	  
+);
+
+
 hps_io_minimig #(.STRLEN($size(CONF_STR)>>3)) hps_io
 (
 	.*,
 	.conf_str(CONF_STR),
 
+	.JOY0(JOY0_USB),
+	.JOY1(JOY1_USB),
+	//.joy_raw({joydb9md_1[4],joydb9md_1[6],joydb9md_1[3:0]}), //Menu Dirs, A:Action B:Back (OSD)
+	.joy_raw({joydb9md_1[5],joydb9md_1[11],joydb9md_1[3:0]}), //Menu Dirs, Z:Action C:Back (OSD)
 	.IO_STROBE(io_strobe),
 	.IO_DIN(io_din),
 	.UIO_ENA(io_uio),
 	.FPGA_ENA(io_fpga),
 	.FPGA_DOUT(fpga_dout),
 	.FPGA_WAIT(io_wait),
-	
 	.BUTTONS(buttons),
 	.new_vmode()
 );
@@ -461,6 +493,8 @@ minimig minimig
 	.dsr          (UART_DSR         ), // RS232 Data Set Ready
 	.cd           (UART_DSR         ), // RS232 Carrier Detect
 	.ri           (1                ), // RS232 Ring Indicator
+
+	.drv_snd      (BUZZER),            //PIN DEL BUZZER
 
 	//I/O
 	._joy1        (~JOY0            ), // joystick 1 [fire4,fire3,fire2,fire,up,down,left,right] (default mouse port)
