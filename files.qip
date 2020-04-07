@@ -20,3 +20,4 @@ set_global_assignment -name VERILOG_FILE src/cpu_wrapper.v
 set_global_assignment -name VERILOG_FILE hps_io_minimig.v
 set_global_assignment -name SDC_FILE Minimig.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE Minimig.sv
+set_global_assignment -name VERILOG_FILE src/joydb9md.v

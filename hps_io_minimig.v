@@ -39,6 +39,8 @@ module hps_io_minimig #(parameter STRLEN=0)
 	output     [15:0] JOY1,
 	output     [15:0] JOY2,
 	output     [15:0] JOY3,
+	
+	input      [15:0] joy_raw,
 
 	output      [2:0] MOUSE_BUTTONS,
 	output            KMS_LEVEL,
@@ -229,6 +231,9 @@ always@(posedge clk_sys) begin
 
 				//UART flags
 				'h28: io_dout <= 16'b000_11111_000_11111;
+
+				// Reading user_io raw joy
+				'h37: io_dout <= joy_raw; 
 
 				//sdram size set
 				'h31: if(byte_cnt == 1) sdram_sz <= io_din;
