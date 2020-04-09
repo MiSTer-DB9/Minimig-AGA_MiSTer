@@ -160,10 +160,10 @@ wire [15:0] io_din;
 
 wire [21:0] gamma_bus;
 
-// S Z C YX BA UDLR  * For NS version (no splitter) comment then 2nd line and uncomment the 3th line)
+// S Z C YX BA UDLR  * For 2 players DB9MD version comment then 3nd line and uncomment the 2th line)
 wire [15:0] JOY0 = {joydb9md_1[7],joydb9md_1[11],joydb9md_1[5],joydb9md_1[10],joydb9md_1[9], joydb9md_1[4],joydb9md_1[6],joydb9md_1[3:0]} | JOY0_USB;
-wire [15:0] JOY1 = {joydb9md_2[7],joydb9md_2[11],joydb9md_2[5],joydb9md_2[10],joydb9md_2[9], joydb9md_2[4],joydb9md_2[6],joydb9md_2[3:0]} | JOY1_USB;
-//wire [15:0] JOY1 = JOY1_USB;
+//wire [15:0] JOY1 = {joydb9md_2[7],joydb9md_2[11],joydb9md_2[5],joydb9md_2[10],joydb9md_2[9], joydb9md_2[4],joydb9md_2[6],joydb9md_2[3:0]} | JOY1_USB;
+wire [15:0] JOY1 = JOY1_USB;
 
 reg [15:0] joydb9md_1,joydb9md_2;
 joy_db9md joy_db9md
