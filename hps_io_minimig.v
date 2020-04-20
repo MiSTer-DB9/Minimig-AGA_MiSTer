@@ -233,7 +233,9 @@ always@(posedge clk_sys) begin
 				'h28: io_dout <= 16'b000_11111_000_11111;
 
 				// Reading user_io raw joy
-				'h0f: io_dout <= joy_raw; 
+				'h0f: io_dout <= joy_raw;
+				// buttons and switches
+				'h01: cfg <= io_din;
 
 				//sdram size set
 				'h31: if(byte_cnt == 1) sdram_sz <= io_din;
