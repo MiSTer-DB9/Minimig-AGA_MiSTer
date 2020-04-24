@@ -45,6 +45,9 @@ module userio
 	input       [1:0] kbd_mouse_type,
 	input       [7:0] kbd_mouse_data,
 	output reg  [1:0] aud_mix,
+	
+	output reg  [2:0] db9type,
+	
 	input             IO_ENA,
 	input             IO_STROBE,
 	output reg        IO_WAIT,
@@ -358,6 +361,8 @@ wire video_cfg_sel    = (cmd[3:0] == 6); // DDHHLLSS || video config    | DD - d
 wire floppy_cfg_sel   = (cmd[3:0] == 7); // XXXXXFFS || floppy config   | FF - drive number, S - floppy speed
 wire harddisk_cfg_sel = (cmd[3:0] == 8); // XXXXXSMC || harddisk config | S - enable slave HDD, M - enable master HDD, C - enable HDD controler
 wire joystick_cfg_sel = (cmd[3:0] == 9); // XXXXXCAA || joystick config | C - CD32pad mode, AA - autofire rate
+wire db9_cfg_type     = (cmd[3:0] == 10);
+
 
 always @(posedge clk) begin
 	reg       has_cmd;
@@ -396,6 +401,7 @@ always @(posedge clk) begin
 				if (harddisk_cfg_sel) t_ide_config <= IO_DIN[4:0];
 				if (joystick_cfg_sel) {joy_swap, cd32pad} <= IO_DIN[3:2];
 				if (aud_sel)          aud_mix <= IO_DIN[1:0];
+				if (db9_cfg_type)     db9type <= IO_DIN[2:0];  
 			end
 			
 			if (mem_write_sel) begin

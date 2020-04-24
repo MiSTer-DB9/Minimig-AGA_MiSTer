@@ -116,7 +116,8 @@ assign ADC_BUS  = 'Z;
 
 wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
 //wire   [2:0] JOY_FLAG  = {status[30],status[31],status[29]}; //Assign 3 bits of status (31:29) o (63:61)
-wire   [2:0] JOY_FLAG  = 3'b101; // b000:off, b100:DB9MD 1P, b010:DB15 1P, b101:DB9MD 2P, b011:DB15 2P
+//wire   [2:0] JOY_FLAG  = 3'b101; // b000:off, b100:DB9MD 1P, b010:DB15 1P, b101:DB9MD 2P, b011:DB15 2P
+wire   [2:0] JOY_FLAG  = {db9type[1],db9type[2],db9type[0]};
 wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
 wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
 wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
@@ -163,16 +164,19 @@ wire [15:0] fpga_dout;
 wire [21:0] gamma_bus;
 
 // F2 F1 U D L R 
-//wire [31:0] JOY0 = joydb_1ena ? (OSD_STATUS? 32'b000000 : {joydb_1[6],joydb_1[5]|joydb_1[4],joydb_1[3:0]}) : JOY0_USB;
-//wire [31:0] JOY1 = joydb_2ena ? (OSD_STATUS? 32'b000000 : {joydb_2[6],joydb_2[5]|joydb_2[4],joydb_2[3:0]}) : joydb_1ena ? JOY0_USB : JOY1_USB;
+wire [31:0] JOY0 = joydb_1ena ? (OSD_STATUS? 32'b000000 : {joydb_1[6],joydb_1[5]|joydb_1[4],joydb_1[3:0]}) : JOY0_USB;
+wire [31:0] JOY1 = joydb_2ena ? (OSD_STATUS? 32'b000000 : {joydb_2[6],joydb_2[5]|joydb_2[4],joydb_2[3:0]}) : joydb_1ena ? JOY0_USB : JOY1_USB;
 
-wire [31:0] JOY0 = OSD_STATUS? 32'b000000 : {joydb_1[6],joydb_1[5]|joydb_1[4],joydb_1[3:0]} | JOY0_USB;
-wire [31:0] JOY1 = OSD_STATUS? 32'b000000 : {joydb_2[6],joydb_2[5]|joydb_2[4],joydb_2[3:0]} | JOY1_USB;
+//wire [31:0] JOY0 = OSD_STATUS? 32'b000000 : {joydb_1[6],joydb_1[5]|joydb_1[4],joydb_1[3:0]} | JOY0_USB;
+//wire [31:0] JOY1 = OSD_STATUS? 32'b000000 : {joydb_2[6],joydb_2[5]|joydb_2[4],joydb_2[3:0]} | JOY1_USB;
 
 wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
 wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
 wire        joydb_1ena = |JOY_FLAG[2:1]              ;
 wire        joydb_2ena = |JOY_FLAG[2:1] & JOY_FLAG[0];
+
+// DB9 Menu
+reg [2:0] db9type;
 
 //----BA 9876543210
 //----MS ZYXCBAUDLR
@@ -541,6 +545,8 @@ minimig minimig
 	.fdd_led      (LED_USER         ),
 	.hdd_led      (LED_DISK[0]      ),
 	.rtc          (RTC              ),
+
+	.db9type      (db9type          ), // DB9 menu
 
 	//host controller interface (SPI)
 	.IO_UIO       (io_uio           ),

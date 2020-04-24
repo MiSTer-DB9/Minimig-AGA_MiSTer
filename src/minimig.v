@@ -211,6 +211,9 @@ module minimig
 	output 	     hdd_led,
 	input  [63:0] rtc,
 
+	output [2:0] db9type,
+
+	
 	//host controller interface (SPI)
 	input 	     IO_UIO,
 	input 	     IO_FPGA,
@@ -593,6 +596,9 @@ userio USERIO1
 	.kms_level(kms_level),
 	.kbd_mouse_data(kbd_mouse_data), 
 	.aud_mix(aud_mix),
+		
+	.db9type(db9type),
+	
 	.IO_ENA(IO_UIO),
 	.IO_STROBE(IO_STROBE),
 	.IO_WAIT(IO_WAIT_OSD),
