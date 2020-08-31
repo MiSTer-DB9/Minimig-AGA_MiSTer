@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - MiSTer
-  pull_request:
-    branches:
-      - MiSTer
   repository_dispatch:
     types: [push_release]
 
