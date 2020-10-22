@@ -36,6 +36,25 @@ module emu
 	output        VGA_F1,
 	output  [1:0] VGA_SL,
 	
+	// Framebuffer control
+	output        FB_EN,
+	output  [4:0] FB_FORMAT,
+	output [11:0] FB_WIDTH,
+	output [11:0] FB_HEIGHT,
+	output [31:0] FB_BASE,
+	output [13:0] FB_STRIDE,
+	input         FB_VBL,
+	input         FB_LL,
+	output        FB_FORCE_BLANK,
+	
+	// Palette control for 8bit modes.
+	// Ignored for other video modes.
+	output        FB_PAL_CLK,
+	output  [7:0] FB_PAL_ADDR,
+	output [23:0] FB_PAL_DOUT,
+	input  [23:0] FB_PAL_DIN,
+	output        FB_PAL_WR,
+	
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 	
 	// b[1]: 0 - LED status is system status OR'd with b[0]
@@ -138,6 +157,7 @@ localparam CONF_STR = {
 	"J,Red(Fire),Blue,Yellow,Green,RT,LT,Pause;",
 	"jn,A,B,X,Y,R,L,Start;",
 	"jp,B,A,X,Y,R,L,Start;",
+	"-;", // (c) voodoo technology!
 	"V,v",`BUILD_DATE
 };
 
@@ -437,6 +457,8 @@ sdram_ctrl ram1
 
 wire [15:0] ram_dout2;
 wire        ram_ready2;
+wire  [7:0] DDRAM_BE_S;
+   
 ddram_ctrl ram2
 (
 	.sysclk       (clk_114         ),
@@ -575,6 +597,19 @@ minimig minimig
 	.ce_pix       (ce_pix           ),
 	.res          (res              ),
 
+	//RTG framebuffer control
+	.rtg_ena      (FB_EN            ),
+	.rtg_hsize    (FB_WIDTH         ),
+	.rtg_vsize    (FB_HEIGHT        ),
+	.rtg_format   (FB_FORMAT        ),
+	.rtg_base     (FB_BASE          ),
+	.rtg_stride   (FB_STRIDE        ),
+	.rtg_pal_clk  (FB_PAL_CLK       ),
+	.rtg_pal_dw   (FB_PAL_DOUT      ),
+	.rtg_pal_dr   (FB_PAL_DIN       ),
+	.rtg_pal_a    (FB_PAL_ADDR      ),
+	.rtg_pal_wr   (FB_PAL_WR        ),
+
 	//audio
 	.ldata        (ldata            ), // left DAC data
 	.rdata        (rdata            ), // right DAC data
@@ -586,6 +621,8 @@ minimig minimig
 	.memcfg       (memcfg           ), // memory config
 	.bootrom      (bootrom          )  // bootrom mode. Needed here to tell tg68k to also mirror the 256k Kickstart 
 );
+
+assign FB_FORCE_BLANK = 0;
 
 reg ce_out = 0;
 always @(posedge CLK_VIDEO) begin

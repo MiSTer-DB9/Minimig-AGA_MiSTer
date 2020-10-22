@@ -62,7 +62,7 @@ module cpu_wrapper
 	output reg [31:0] nmi_addr
 );
 
-assign ramsel = cpu_req & ~sel_nmi_vector & (sel_zram | sel_chipram | sel_kickram | sel_dd);
+assign ramsel = cpu_req & ~sel_nmi_vector & (sel_zram | sel_chipram | sel_kickram | sel_dd | sel_rtg);
 assign ramshared = sel_dd;
 
 // NMI
@@ -73,7 +73,7 @@ wire sel_z3ram1 = (cpu_addr[31:28] == z3ram_base1) && z3ram_ena1;
 wire sel_z2ram  = !cpu_addr[31:24] && (cpu_addr[23] ^ |cpu_addr[22:21]) && z2ram_ena; // addr[23:21] = 1..4
 wire sel_zram   = sel_z3ram0 | sel_z3ram1 | sel_z2ram;
 wire sel_dd     = (cpu_addr[31:16] == 16'h00DD) && (cpu_addr[15:13] == 'b010);
-
+wire sel_rtg    = (cpu_addr[31:24] == 8'h02);
 
 // don't sel_kickram when writing
 wire sel_kickram   = !cpu_addr[31:24] && (&cpu_addr[23:19] || (cpu_addr[23:19] == 5'b11100)) && ckick && wr;	// $f8xxxx, e0xxxx
@@ -84,17 +84,20 @@ wire sel_chipram   = !cpu_addr[31:21] && cchip; 		             //$000000 - $1FFF
 // decide what to do, would not be good style to replicate that here). 
 wire sel_nmi_vector = (cpu_addr[31:2] == nmi_addr[31:2]) && (cpustate == 2);
 
-assign ramlds = lds_in;
-assign ramuds = uds_in;
-assign ramdin = cpu_dout;
+wire [15:0] ramdat;
 
-//       Main  DDx  8M  128M  256M
-//       ----  ---  --  ----  ----
-//        SDR  DDR  Z2  Z3_0  Z3_1
-// 28      0    0    1    0     1
-// 27      0    0    1    1     X
-// 26      0    1    0    X     X
-// 25-23   0    1    0    X     X
+assign ramlds = sel_rtg ? uds_in : lds_in;
+assign ramuds = sel_rtg ? lds_in : uds_in;
+assign ramdin = sel_rtg ? {cpu_dout[7:0],cpu_dout[15:8]} : cpu_dout;
+assign ramdat = sel_rtg ? {ramdout[7:0], ramdout[15:8]}  : ramdout;
+
+//       Main  DDx  RTG  8M  128M  256M
+//       ----  ---  ---  --  ----  ----
+//        SDR  DDR  RTG  Z2  Z3_0  Z3_1
+// 28      0    0    0   1    0     1
+// 27      0    0    0   1    1     X
+// 26      0    1    1   0    X     X
+// 25-23   0   111  110  0    X     X
 // supported configs: SDR + (Z2, Z3_1, Z3_0+Z3_1)
 
 // This is the mapping to the sram
@@ -103,7 +106,7 @@ assign ramdin = cpu_dout;
 // All Zorro RAM goes to DDR3
 assign ramaddr[28]    = sel_zram & ~sel_z3ram0;
 assign ramaddr[27]    = sel_zram & (~sel_z3ram1 | cpu_addr[27]);
-assign ramaddr[26:23] = (sel_z3ram0 | sel_z3ram1) ? cpu_addr[26:23] : {4{sel_dd}};
+assign ramaddr[26:23] = (sel_z3ram0 | sel_z3ram1) ? cpu_addr[26:23]:(sel_rtg?4'b1110:{4{sel_dd}});
 assign ramaddr[22:19] = {4{sel_dd}} | cpu_addr[22:19];
 assign ramaddr[18]    =    sel_dd   | (sel_kicklower & bootrom) | cpu_addr[18];
 assign ramaddr[17:16] = {2{sel_dd}} | cpu_addr[17:16];
@@ -111,7 +114,7 @@ assign ramaddr[15:1]  = cpu_addr[15:1];
 
 reg  [31:0] cpu_addr;
 reg  [15:0] cpu_dout;
-wire [15:0] cpu_din = ramsel ? ramdout : {sel_autoconfig ? autocfg_data : chip_data[15:12], chip_data[11:0]};
+wire [15:0] cpu_din = ramsel ? ramdat : {sel_autoconfig ? autocfg_data : chip_data[15:12], chip_data[11:0]};
 reg         wr;
 reg         uds_in;
 reg         lds_in;
