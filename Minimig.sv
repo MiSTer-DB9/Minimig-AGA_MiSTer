@@ -35,6 +35,7 @@ module emu
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
 	output  [1:0] VGA_SL,
+	output        VGA_SCALER, // Force VGA scaler
 	
 	// Framebuffer control
 	output        FB_EN,
@@ -150,14 +151,13 @@ assign       USER_OSD  = joydb_1[10] & joydb_1[6];
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign BUTTONS = 0;
 
-
 `include "build_id.v" 
 localparam CONF_STR = {
 	"Minimig;;",
 	"J,Red(Fire),Blue,Yellow,Green,RT,LT,Pause;",
 	"jn,A,B,X,Y,R,L,Start;",
 	"jp,B,A,X,Y,R,L,Start;",
-	"----;", // (c) voodoo technology!
+	"-;", // (c) voodoo technology!
 	"V,v",`BUILD_DATE
 };
 
@@ -264,6 +264,7 @@ assign LED_DISK[1]  = 1;
 
 assign VIDEO_ARX    = FB_EN ? FB_WIDTH  : (!ar) ? 8'd4 : (ar - 1'd1);
 assign VIDEO_ARY    = FB_EN ? FB_HEIGHT : (!ar) ? 8'd3 : 8'd0;
+assign VGA_SCALER   = FB_EN;
 
 wire clk_57, clk_114;
 wire clk_sys;
