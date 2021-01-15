@@ -116,8 +116,9 @@ module sys_top
 
 	//inout         SDCD_SPDIF,
 	output        IO_SCL,
-	inout         IO_SDA,
-
+	//inout         IO_SDA,
+   output        IO_SDA,
+	
 	////////// ADC //////////////
 	output        ADC_SCK,
 	input         ADC_SDO,
@@ -194,18 +195,18 @@ wire btn_r, btn_o, btn_u;
 
 wire [2:0] mcp_btn;
 wire       mcp_sdcd;
-mcp23009 mcp23009
-(
-	.clk(FPGA_CLK2_50),
-
-	.btn(mcp_btn),
-	.led({led_p, led_d, led_u}),
-	.sd_cd(mcp_sdcd),
-
-	.scl(IO_SCL),
-	.sda(IO_SDA)
-);
-
+//mcp23009 mcp23009
+//(
+//	.clk(FPGA_CLK2_50),
+//
+//	.btn(mcp_btn),
+//	.led({led_p, led_d, led_u}),
+//	.sd_cd(mcp_sdcd),
+//
+//	.scl(IO_SCL),
+//	.sda(IO_SDA)
+//);
+assign IO_SDA = 1'b0;
 
 reg btn_user, btn_osd;
 always @(posedge FPGA_CLK2_50) begin
