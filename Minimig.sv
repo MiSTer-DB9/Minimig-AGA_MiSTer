@@ -37,7 +37,14 @@ module emu
 	output  [1:0] VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
 	
-	// Framebuffer control
+`ifdef USE_FB
+	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
+	// FB_FORMAT:
+	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
+	//    [3]   : 0=16bits 565 1=16bits 1555
+	//    [4]   : 0=RGB  1=BGR (for 16/24/32 modes)
+	//
+	// FB_STRIDE either 0 (rounded to 256 bytes) or multiple of pixel size (in bytes)
 	output        FB_EN,
 	output  [4:0] FB_FORMAT,
 	output [11:0] FB_WIDTH,
@@ -55,6 +62,7 @@ module emu
 	output [23:0] FB_PAL_DOUT,
 	input  [23:0] FB_PAL_DIN,
 	output        FB_PAL_WR,
+`endif
 	
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 	
@@ -87,6 +95,7 @@ module emu
 	output        SD_CS,
 	input         SD_CD,
 	
+`ifdef USE_DDRAM
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
@@ -99,7 +108,9 @@ module emu
 	output [63:0] DDRAM_DIN,
 	output  [7:0] DDRAM_BE,
 	output        DDRAM_WE,
+`endif
 	
+`ifdef USE_SDRAM
 	//SDRAM interface with lower latency
 	output        SDRAM_CLK,
 	output        SDRAM_CKE,
@@ -112,6 +123,20 @@ module emu
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
+`endif
+
+`ifdef DUAL_SDRAM
+	//Secondary SDRAM
+	input         SDRAM2_EN,
+	output        SDRAM2_CLK,
+	output [12:0] SDRAM2_A,
+	output  [1:0] SDRAM2_BA,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_nCS,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nWE,
+`endif
 	
 	input         UART_CTS,
 	output        UART_RTS,
@@ -512,8 +537,8 @@ assign UART_RTS = ~hps_mpu & uart_rts;
 assign UART_DTR = ~hps_mpu & uart_dtr;
 assign uart_cts = ~hps_mpu & UART_CTS;
 assign uart_dsr = ~hps_mpu & UART_DSR;
-assign uart_rx  = ~hps_mpu ? UART_RXD : midi_rx;
-assign UART_TXD = ~hps_mpu ? uart_tx : (uart_tx & ~mt32_use);
+assign uart_rx  = uart_mode ? UART_RXD : midi_rx;
+assign UART_TXD = (hps_mpu & mt32_use) | uart_tx;
 
 ///////////////////////////////////////////////////////////////////////
 
