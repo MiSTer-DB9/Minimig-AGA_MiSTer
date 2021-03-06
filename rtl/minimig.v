@@ -254,6 +254,8 @@ module minimig
 	//audio
 	output [14:0] ldata,       // left DAC data
 	output [14:0] rdata,       // right DAC data
+	output [8:0]  ldata_okk,   // left DAC data  (PWM volume)
+	output [8:0]  rdata_okk,   // right DAC data (PWM volume)
 	output  [1:0] aud_mix,
 
 	//user i/o
@@ -432,7 +434,7 @@ wire        reset = sys_reset | ~_cpu_reset_in; // both tg68k and minimig_syscon
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 
-// drive step sound emulation
+assign pwr_led = ~_led;
 reg	_step_del;
 always @(posedge clk)
 	_step_del <= _step; // delayed version of _step for edge detection
@@ -459,16 +461,6 @@ always @(posedge clk)
 assign drv_snd = drvsnd ? 1'b1 : 1'b0;
 
 
-// power led control
-reg [5:0] led_cnt;
-reg led_dim;
-
-always @ (posedge clk) begin
-  led_cnt <= led_cnt + 1'd1;
-  led_dim <= |led_cnt[5:2];
-end
-
-assign pwr_led = ~(_led & led_dim);
 
 assign memcfg = {memory_config[7],memory_config[5:0]};
 assign cachecfg = {cachecfg_pre[2], ~ovl, ~ovl};
@@ -571,6 +563,8 @@ paula PAULA1
 	.IO_DOUT(IO_DOUT_PAULA),
 	.ldata(ldata),
 	.rdata(rdata),
+	.ldata_okk(ldata_okk),
+	.rdata_okk(rdata_okk),
 
 	.floppy_drives(floppy_config[3:2]),
 	//ide stuff
