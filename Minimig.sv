@@ -559,6 +559,8 @@ wire        _ram_we;       // sram write enable
 wire        _ram_oe;       // sram output enable
 wire [14:0] ldata;         // left DAC data
 wire [14:0] rdata;         // right DAC data
+wire [9:0]  ldata_okk;     // left DAC data  (PWM vol version)
+wire [9:0]  rdata_okk;     // right DAC data (PWM vol version)
 wire        vs;
 wire        hs;
 wire  [1:0] ar;
@@ -621,7 +623,7 @@ minimig minimig
 	.kbd_mouse_data (kbd_mouse_data ), // mouse direction data, keycodes
 	.kbd_mouse_type (kbd_mouse_type ), // type of data
 	.kms_level    (kbd_mouse_level  ),
-	.pwr_led      (LED_POWER[0]     ), // power led
+	.pwr_led      (pwr_led          ), // power led
 	.fdd_led      (LED_USER         ),
 	.hdd_led      (LED_DISK[0]      ),
 	.rtc          (RTC              ),
@@ -667,6 +669,9 @@ minimig minimig
 	//audio
 	.ldata        (ldata            ), // left DAC data
 	.rdata        (rdata            ), // right DAC data
+	.ldata_okk    (ldata_okk        ), // 9bit
+	.rdata_okk    (rdata_okk        ), // 9bit
+
 	.aud_mix      (AUDIO_MIX        ),
 
 	//user i/o
@@ -675,6 +680,18 @@ minimig minimig
 	.memcfg       (memcfg           ), // memory config
 	.bootrom      (bootrom          )  // bootrom mode. Needed here to tell tg68k to also mirror the 256k Kickstart 
 );
+
+// power led control
+wire pwr_led;
+reg [5:0] led_cnt;
+reg led_dim;
+
+always @ (posedge clk_sys) begin
+  led_cnt <= led_cnt + 1'd1;
+  led_dim <= |led_cnt[5:2];
+end
+
+assign LED_POWER[0] = pwr_led | ~led_dim;
 
 assign FB_FORCE_BLANK = 0;
 
@@ -709,22 +726,20 @@ wire [7:0] R,G,B;
 video_mixer #(.LINE_LENGTH(2000), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 (
 	.*,
-	
 	.hq2x(fx==1),
-
-	.VGA_DE(vga_de),
-	.VGA_R(R),
-	.VGA_G(G),
-	.VGA_B(B),
-
 	.ce_pix(ce_out),
+
 	.R(r),
 	.G(g),
 	.B(b),
 	.HSync(~hs),
 	.VSync(~vs),
 	.HBlank(~hde),
-	.VBlank(~vde)
+	.VBlank(~vde),
+
+	.VGA_R(R),
+	.VGA_G(G),
+	.VGA_B(B)
 );
 
 assign CLK_VIDEO = clk_114;
@@ -733,19 +748,19 @@ assign VGA_R     = mt32_lcd ? {{2{mt32_lcd_pix}},R[7:2]} : R;
 assign VGA_G     = mt32_lcd ? {{2{mt32_lcd_pix}},G[7:2]} : G;
 assign VGA_B     = mt32_lcd ? {{2{mt32_lcd_pix}},B[7:2]} : B;
 
-wire vga_de;
 wire [12:0] arx,ary;
 video_freak video_freak
 (
 	.*,
-	.VGA_DE_IN(vga_de),
+	.VGA_DE_IN(VGA_DE),
+	.VGA_DE(),
 	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
 	.ARY((!ar) ? 12'd3 : 12'd0),
 	.VIDEO_ARX(arx),
 	.VIDEO_ARY(ary),
 	.CROP_SIZE(0),
 	.CROP_OFF(0),
-	.SCALE(status[44:43])
+	.SCALE(status[45:43])
 );
 
 reg [11:0] fb_arx, fb_ary;
@@ -1008,15 +1023,67 @@ end
 
 /* ------------------------------------------------------------------------------ */
 
+wire flt_en    = ~status[48] ? pwr_led : status[47];
+wire aud_1200  = status[49];
+wire paula_pwm = status[50];
+
+wire [15:0] paula_smp_l = (paula_pwm ? {ldata_okk[8:0], 7'b0} : {ldata[14:0], 1'b0});
+wire [15:0] paula_smp_r = (paula_pwm ? {rdata_okk[8:0], 7'b0} : {rdata[14:0], 1'b0});
+
+// LPF 4400Hz, 1st order, 6db/oct
+wire [15:0] lpf4400_l, lpf4400_r;
+IIR_filter #(0) lpf4400
+(
+	.clk(clk_sys),
+	.reset(reset),
+
+	.ce(clk7_en | clk7n_en),
+	.sample_ce(1),
+
+	.cx (40'd4304835800),
+	.cx0(1),
+	.cy0(-2088941),
+	
+	.input_l(paula_smp_l),
+	.input_r(paula_smp_r),
+	.output_l(lpf4400_l),
+	.output_r(lpf4400_r)
+);
+
+wire [15:0] audm_l = aud_1200 ? paula_smp_l : lpf4400_l;
+wire [15:0] audm_r = aud_1200 ? paula_smp_r : lpf4400_r;
+
+// LPF 3000Hz 1st + 3400Hz 1st
+wire [15:0] lpf3275_l, lpf3275_r;
+IIR_filter #(0) lpf3275
+(
+	.clk(clk_sys),
+	.reset(reset),
+
+	.ce(clk7_en | clk7n_en),
+	.sample_ce(1),
+
+	.cx (40'd8536629),
+	.cx0(2),
+	.cx1(1),
+	.cy0(-4182432),
+	.cy1(2085297),
+
+	.input_l(audm_l),
+	.input_r(audm_r),
+	.output_l(lpf3275_l),
+	.output_r(lpf3275_r)
+);
+
 reg [15:0] aud_l, aud_r;
 always @(posedge CLK_AUDIO) begin
 	reg [15:0] old_l0, old_l1, old_r0, old_r1;
-	
-	old_l0 <= {ldata[14],ldata};
+
+	old_l0 <= flt_en ? lpf3275_l : audm_l;
 	old_l1 <= old_l0;
 	if(old_l0 == old_l1) aud_l <= old_l1;
 
-	old_r0 <= {rdata[14],rdata};
+	old_r0 <= flt_en ? lpf3275_r : audm_r;
 	old_r1 <= old_r0;
 	if(old_r0 == old_r1) aud_r <= old_r1;
 end
