@@ -194,9 +194,6 @@ module minimig
 	input 	     cd,          // rs232 Carrier Detect
 	input 	     ri,          // rs232 Ring Indicator
 
-	//BUZZER
-	output drv_snd,            //Salida del la emulacion de sonido FD al Buzzer
-
 	//I/O
 	input  [15:0] _joy1,       // joystick 1 [fire2,fire,up,down,left,right] (default mouse port)
 	input  [15:0] _joy2,       // joystick 2 [fire2,fire,up,down,left,right] (default joystick port)
@@ -211,9 +208,6 @@ module minimig
 	output 	     hdd_led,
 	input  [63:0] rtc,
 
-	output [2:0] db9type,
-
-	
 	//host controller interface (SPI)
 	input 	     IO_UIO,
 	input 	     IO_FPGA,
@@ -435,32 +429,6 @@ wire        reset = sys_reset | ~_cpu_reset_in; // both tg68k and minimig_syscon
 //--------------------------------------------------------------------------------------
 
 assign pwr_led = ~_led;
-reg	_step_del;
-always @(posedge clk)
-	_step_del <= _step; // delayed version of _step for edge detection
-
-wire	step_pulse;
-assign	step_pulse = _step & ~_step_del; // rising edge detection
-
-reg	sol_del;
-always @(posedge clk)
-	sol_del <= sol; // delayed version of sol (Amiga display line) for edge detection
-
-wire	sol_pulse;
-assign sol_pulse = sol & ~sol_del; // rising edge detection
-
-reg	[3:0] drv_cnt;
-always @(posedge clk)
-	if (drv_cnt != 0 && sol_pulse || drv_cnt == 0 && step_pulse && _change && !reset) // count only sol pulses when counter is not zero or step pulses and bootloader is not active
-		drv_cnt <= drv_cnt + 1;
-
-reg	drvsnd;
-always @(posedge clk)
-	drvsnd <= |drv_cnt; // high when at least one bit of drv_cnt vector is not zero (| is the reduction operator) and any drive has an inserted disk
-
-assign drv_snd = drvsnd ? 1'b1 : 1'b0;
-
-
 
 assign memcfg = {memory_config[7],memory_config[5:0]};
 assign cachecfg = {cachecfg_pre[2], ~ovl, ~ovl};
@@ -605,9 +573,6 @@ userio USERIO1
 	.kms_level(kms_level),
 	.kbd_mouse_data(kbd_mouse_data), 
 	.aud_mix(aud_mix),
-		
-	.db9type(db9type),
-	
 	.IO_ENA(IO_UIO),
 	.IO_STROBE(IO_STROBE),
 	.IO_WAIT(IO_WAIT_OSD),
@@ -625,13 +590,13 @@ userio USERIO1
 	.cpurst(cpurst),
 	.cpuhlt(cpuhlt),
 	.bootrom(bootrom),
-	.host_cs      (host_cs          ),
-	.host_adr     (host_adr         ),
-	.host_we      (host_we          ),
-	.host_bs      (host_bs          ),
-	.host_wdat    (host_wdat        ),
-	.host_rdat    (host_rdat        ),
-	.host_ack     (host_ack         )
+	.host_cs(host_cs),
+	.host_adr(host_adr),
+	.host_we(host_we),
+	.host_bs(host_bs),
+	.host_wdat(host_wdat),
+	.host_rdat(host_rdat),
+	.host_ack(host_ack)
 );
 
 wire shres;
@@ -822,26 +787,26 @@ minimig_sram_bridge RAM1
 
 cart CART1
 (
-  .clk            (clk            ),
-  .clk7_en        (clk7_en        ),
-  .clk7n_en       (clk7n_en       ),
-  .cpu_rst        (!_cpu_reset    ),
-  .cpu_address_in (cpu_address_out),
-  ._cpu_as        (_cpu_as        ),
-  .cpu_rd         (cpu_rd         ),
-  .cpu_hwr        (cpu_hwr        ),
-  .cpu_lwr        (cpu_lwr        ),
-  .nmi_addr       (nmi_addr       ),
-  .reg_address_in (reg_address    ),
-  .reg_data_in    (custom_data_in ),
-  .dbr            (dbr            ),
-  .ovl            (ovl            ),
-  .freeze         (freeze         ),
-  .cart_data_out  (cart_data_out  ),
-  .int7           (int7           ),
-  .sel_cart       (sel_cart       ),
-  .ovr            (ovr            ),
-  .cpuhlt         (cpuhlt)
+  .clk(clk),
+  .clk7_en(clk7_en),
+  .clk7n_en(clk7n_en),
+  .cpu_rst(!_cpu_reset),
+  .cpu_address_in(cpu_address_out),
+  ._cpu_as(_cpu_as),
+  .cpu_rd(cpu_rd),
+  .cpu_hwr(cpu_hwr),
+  .cpu_lwr(cpu_lwr),
+  .nmi_addr(nmi_addr),
+  .reg_address_in(reg_address),
+  .reg_data_in(custom_data_in),
+  .dbr(dbr),
+  .ovl(ovl),
+  .freeze(freeze),
+  .cart_data_out(cart_data_out),
+  .int7(int7),
+  .sel_cart(sel_cart),
+  .ovr(ovr),
+  .cpuhlt(cpuhlt)
 );
 
 //level 7 interrupt for CPU
@@ -947,9 +912,9 @@ wire [15:0] rtc_out = (sel_rtc && cpu_rd) ? {12'h000, rtc[{cpu_address_out[5:2],
 
 //data multiplexer
 assign cpu_data_in[15:0]= gary_data_out[15:0]
-								| cia_data_out[15:0]
-								| gayle_data_out[15:0]
-								| cart_data_out[15:0]
+							 | cia_data_out[15:0]
+							 | gayle_data_out[15:0]
+							 | cart_data_out[15:0]
 							 | rtc_out
 							 | rtg_data_out;
 

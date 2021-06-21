@@ -8,26 +8,26 @@ module emu
 (
 	//Master input clock
 	input         CLK_50M,
-	
+
 	//Async reset from top-level module.
 	//Can be used as initial reset.
 	input         RESET,
-	
+
 	//Must be passed to hps_io module
 	inout  [45:0] HPS_BUS,
-	
+
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
-	
+
 	//Multiple resolutions are supported using different CE_PIXEL rates.
 	//Must be based on CLK_VIDEO
 	output        CE_PIXEL,
-	
+
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
 	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
 	output [12:0] VIDEO_ARX,
 	output [12:0] VIDEO_ARY,
-	
+
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
 	output  [7:0] VGA_B,
@@ -35,9 +35,9 @@ module emu
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
-	output  [1:0] VGA_SL,
+	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
-	
+
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
 
@@ -58,7 +58,7 @@ module emu
 	input         FB_VBL,
 	input         FB_LL,
 	output        FB_FORCE_BLANK,
-	
+
 	// Palette control for 8bit modes.
 	// Ignored for other video modes.
 	output        FB_PAL_CLK,
@@ -67,9 +67,9 @@ module emu
 	input  [23:0] FB_PAL_DIN,
 	output        FB_PAL_WR,
 `endif
-	
+
 	output        LED_USER,  // 1 - ON, 0 - OFF.
-	
+
 	// b[1]: 0 - LED status is system status OR'd with b[0]
 	//       1 - LED status is controled solely by b[0]
 	// hint: supply 2'b00 to let the system control the LED.
@@ -81,24 +81,22 @@ module emu
 	// b[0]: osd button
 	output  [1:0] BUTTONS,
 
-	output		 BUZZER,		  // Salida para Altavoz
 	input         CLK_AUDIO, // 24.576 MHz
-	
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
-	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
+	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
 	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
-	
+
 	//ADC
 	inout   [3:0] ADC_BUS,
-	
+
 	//SD-SPI
 	output        SD_SCK,
 	output        SD_MOSI,
 	input         SD_MISO,
 	output        SD_CS,
 	input         SD_CD,
-	
+
 `ifdef USE_DDRAM
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
@@ -113,7 +111,7 @@ module emu
 	output  [7:0] DDRAM_BE,
 	output        DDRAM_WE,
 `endif
-	
+
 `ifdef USE_SDRAM
 	//SDRAM interface with lower latency
 	output        SDRAM_CLK,
@@ -141,44 +139,77 @@ module emu
 	output        SDRAM2_nRAS,
 	output        SDRAM2_nWE,
 `endif
-	
+
 	input         UART_CTS,
 	output        UART_RTS,
 	input         UART_RXD,
 	output        UART_TXD,
 	output        UART_DTR,
 	input         UART_DSR,
-	
+
 	// Open-drain User port.
 	// 0 - D+/RX
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	output	USER_OSD,
+	output        USER_OSD,
 	output  [1:0] USER_MODE,
-	input	[7:0] USER_IN,
-	output	[7:0] USER_OUT,
+	input   [7:0] USER_IN,
+	output  [7:0] USER_OUT,
 
 	input         OSD_STATUS
 );
 
-assign ADC_BUS  = 'Z;
-
-assign SDRAM_CKE = midi_tx;
-
 wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
-//wire   [2:0] JOY_FLAG  = {status[30],status[31],status[29]}; //Assign 3 bits of status (31:29) o (63:61)
-//wire   [2:0] JOY_FLAG  = 3'b101; // b000:off, b100:DB9MD 1P, b010:DB15 1P, b101:DB9MD 2P, b011:DB15 2P
-wire   [2:0] JOY_FLAG  = {db9type[1],db9type[2],db9type[0]};
+wire   [2:0] JOY_FLAG = {db9md_ena,~db9md_ena,1'b0};   //Assign 3 bits of status (31:29) o (63:61)
 wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
 wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
 wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
-assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111111,JOY_CLK,JOY_LOAD} : '1;
+assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111011,JOY_CLK,JOY_LOAD} : '1;
 assign       USER_MODE = JOY_FLAG[2:1] ;
-assign       USER_OSD  = joydb_1[10] & joydb_1[6];
+assign       USER_OSD  = JOY_DB1[10] & JOY_DB1[6];
 
+reg  db9md_ena=1'b0;
+reg  db9_1p_ena=1'b0,db9_2p_ena=1'b0;
+wire db9_status = db9md_ena ? 1'b1 : USER_IN[7];
+always @(posedge clk_sys) 
+ begin
+	if(~db9md_ena & ~db9_status) db9md_ena <= 1'b1; 
+   if(JOYDB9MD_1[2] || JOYDB15_1[2]) db9_1p_ena <= 1'b1;
+	if(~JOYDB9MD_1[2] && JOYDB9MD_2[2] || JOYDB15_2[2]) db9_2p_ena <= 1'b1; //Se niega el del player 1 por si no hay Splitter que no se duplique
+ end
 
+wire [15:0] JOY_DB1 = db9md_ena ? JOYDB9MD_1 : JOYDB15_1;
+wire [15:0] JOY_DB2 = db9md_ena ? JOYDB9MD_2 : JOYDB15_2;
 
+reg [15:0] JOYDB9MD_1,JOYDB9MD_2;
+joy_db9md joy_db9md
+(
+  .clk       ( CLK_JOY    ), //40-50MHz
+  .joy_split ( JOY_SPLIT  ),
+  .joy_mdsel ( JOY_MDSEL  ),
+  .joy_in    ( JOY_MDIN   ),
+  .joystick1 ( JOYDB9MD_1 ),
+  .joystick2 ( JOYDB9MD_2 )	  
+);
+
+reg [15:0] JOYDB15_1,JOYDB15_2;
+joy_db15 joy_db15
+(
+  .clk       ( CLK_JOY   ), //48MHz
+  .JOY_CLK   ( JOY_CLK   ),
+  .JOY_DATA  ( JOY_DATA  ),
+  .JOY_LOAD  ( JOY_LOAD  ),
+  .joystick1 ( JOYDB15_1 ),
+  .joystick2 ( JOYDB15_2 )	  
+);
+
+wire [15:0] JOY0 = db9_1p_ena ? JOY_DB1 : JOY0_USB;
+wire [15:0] JOY1 = db9_2p_ena ? JOY_DB2 : db9_1p_ena ? JOY0_USB : JOY1_USB;
+wire [15:0] JOY2 = db9_2p_ena ? JOY0_USB : db9_1p_ena ? JOY1_USB : JOY2_USB;
+wire [15:0] JOY3 = db9_2p_ena ? JOY1_USB : db9_1p_ena ? JOY2_USB : JOY3_USB;
+
+assign ADC_BUS  = 'Z;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign BUTTONS = 0;
 
@@ -201,8 +232,8 @@ localparam CONF_STR2 =
 
 wire [15:0] JOY0_USB;
 wire [15:0] JOY1_USB;
-wire [15:0] JOY2;
-wire [15:0] JOY3;
+wire [15:0] JOY2_USB;
+wire [15:0] JOY3_USB;
 wire  [7:0] kbd_mouse_data;
 wire        kbd_mouse_level;
 wire  [1:0] kbd_mouse_type;
@@ -225,47 +256,6 @@ wire [21:0] gamma_bus;
 
 wire  [7:0] uart_mode;
 
-// F2 F1 U D L R 
-wire [31:0] JOY0 = joydb_1ena ? (OSD_STATUS? 32'b000000 : {joydb_1[6],joydb_1[5]|joydb_1[4],joydb_1[3:0]}) : JOY0_USB;
-wire [31:0] JOY1 = joydb_2ena ? (OSD_STATUS? 32'b000000 : {joydb_2[6],joydb_2[5]|joydb_2[4],joydb_2[3:0]}) : joydb_1ena ? JOY0_USB : JOY1_USB;
-
-//wire [31:0] JOY0 = OSD_STATUS? 32'b000000 : {joydb_1[6],joydb_1[5]|joydb_1[4],joydb_1[3:0]} | JOY0_USB;
-//wire [31:0] JOY1 = OSD_STATUS? 32'b000000 : {joydb_2[6],joydb_2[5]|joydb_2[4],joydb_2[3:0]} | JOY1_USB;
-
-wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
-wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
-wire        joydb_1ena = |JOY_FLAG[2:1]              ;
-wire        joydb_2ena = |JOY_FLAG[2:1] & JOY_FLAG[0];
-
-// DB9 Menu
-reg [2:0] db9type;
-
-//----BA 9876543210
-//----MS ZYXCBAUDLR
-reg [15:0] JOYDB9MD_1,JOYDB9MD_2;
-joy_db9md joy_db9md
-(
-  .clk       ( CLK_JOY    ), //40-50MHz
-  .joy_split ( JOY_SPLIT  ),
-  .joy_mdsel ( JOY_MDSEL  ),
-  .joy_in    ( JOY_MDIN   ),
-  .joystick1 ( JOYDB9MD_1 ),
-  .joystick2 ( JOYDB9MD_2 )	  
-);
-
-//----BA 9876543210
-//----LS FEDCBAUDLR
-reg [15:0] JOYDB15_1,JOYDB15_2;
-joy_db15 joy_db15
-(
-  .clk       ( CLK_JOY   ), //48MHz
-  .JOY_CLK   ( JOY_CLK   ),
-  .JOY_DATA  ( JOY_DATA  ),
-  .JOY_LOAD  ( JOY_LOAD  ),
-  .joystick1 ( JOYDB15_1 ),
-  .joystick2 ( JOYDB15_2 )	  
-);
-
 hps_io #(.STRLEN(($size(CONF_STR1) + $size(mt32_curmode) + $size(CONF_STR2))>>3)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -277,11 +267,11 @@ hps_io #(.STRLEN(($size(CONF_STR1) + $size(mt32_curmode) + $size(CONF_STR2))>>3)
 	.info_req(mt32_info_req),
 	.info(1),
 
+	.joy_raw(JOY_DB1[5:0] | JOY_DB2[5:0]),
 	.joystick_0(JOY0_USB),
 	.joystick_1(JOY1_USB),
-	.joystick_2(JOY2),
-	.joystick_3(JOY3),
-	.joy_raw(OSD_STATUS? (joydb_1[5:0]|joydb_2[5:0]) : 6'b000000 ), // Menu Dirs, A:Action B:Back (USB)
+	.joystick_2(JOY2_USB),
+	.joystick_3(JOY3_USB),
 
 	.ioctl_wait(io_wait),
 
@@ -472,7 +462,7 @@ sdram_ctrl ram1
 	.sd_we        (SDRAM_nWE       ),
 	.sd_ras       (SDRAM_nRAS      ),
 	.sd_cas       (SDRAM_nCAS      ),
-	.sd_cke       (                ), // SDRAM_CKE
+	.sd_cke       (SDRAM_CKE       ),
 	.sd_clk       (SDRAM_CLK       ),
 
 	.cpuWR        (ram_din         ),
@@ -612,8 +602,6 @@ minimig minimig
 	.cd           (uart_dsr         ), // RS232 Carrier Detect
 	.ri           (1                ), // RS232 Ring Indicator
 
-	.drv_snd      (BUZZER),            //PIN DEL BUZZER
-
 	//I/O
 	._joy1        (~JOY0            ), // joystick 1 [fire4,fire3,fire2,fire,up,down,left,right] (default mouse port)
 	._joy2        (~JOY1            ), // joystick 2 [fire4,fire3,fire2,fire,up,down,left,right] (default joystick port)
@@ -627,8 +615,6 @@ minimig minimig
 	.fdd_led      (LED_USER         ),
 	.hdd_led      (LED_DISK[0]      ),
 	.rtc          (RTC              ),
-
-	.db9type      (db9type          ), // DB9 menu
 
 	//host controller interface (SPI)
 	.IO_UIO       (io_uio           ),
