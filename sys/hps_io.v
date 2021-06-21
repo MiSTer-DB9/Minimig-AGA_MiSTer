@@ -30,6 +30,7 @@ module hps_io #(parameter STRLEN=0, PS2DIV=0, WIDE=0, VDNUM=1, PS2WE=0)
 	input             clk_sys,
 	inout      [45:0] HPS_BUS,
 
+	input      [15:0] joy_raw,
 	// parameter STRLEN and the actual length of conf_str have to match
 	input [(8*STRLEN)-1:0] conf_str,
 
@@ -41,8 +42,6 @@ module hps_io #(parameter STRLEN=0, PS2DIV=0, WIDE=0, VDNUM=1, PS2WE=0)
 	output reg [31:0] joystick_4,
 	output reg [31:0] joystick_5,
 	
-	input      [15:0] joy_raw,
-
 	// analog -127..+127, Y: [15:8], X: [7:0]
 	output reg [15:0] joystick_analog_0,
 	output reg [15:0] joystick_analog_1,
@@ -314,6 +313,8 @@ always@(posedge clk_sys) begin : uio_block
 		end else begin
 
 			case(cmd)
+				// Reading user_io raw joy
+				'h0f: io_dout <= joy_raw;
 				// buttons and switches
 				'h01: cfg <= io_din;
 				'h02: if(byte_cnt==1) joystick_0[15:0] <= io_din; else joystick_0[31:16] <= io_din;
@@ -490,11 +491,6 @@ always@(posedge clk_sys) begin : uio_block
 								3: {uart_speed, uart_mode} <= {io_din, tmp1, tmp2};
 							endcase
 						end
-
-				// Reading user_io raw joy
-				'h0f: io_dout <= joy_raw;
-				// buttons and switches
-				'h01: cfg <= io_din;
 			endcase
 		end
 	end
@@ -622,19 +618,19 @@ always@(posedge clk_sys) begin : fio_block
 										ioctl_rd <= 1;
 									end
 									else if(io_din[7:0]) begin
-								addr <= 0;
-								ioctl_download <= 1;
+										addr <= 0;
+										ioctl_download <= 1;
 									end
 									else begin
 										if(ioctl_download) ioctl_addr <= addr;
-								ioctl_download <= 0;
+										ioctl_download <= 0;
 										ioctl_upload <= 0;
-							end
+									end
 
 								1: begin
 										ioctl_addr[15:0] <= io_din;
 										addr[15:0] <= io_din;
-						end
+									end
 
 								2: begin
 										ioctl_addr[26:16] <= io_din[10:0];

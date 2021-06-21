@@ -92,7 +92,6 @@ module sys_top
 	output		  AUDIO_L,
 	output		  AUDIO_R,
 	output		  AUDIO_SPDIF,
-	output	     BUZZER,
 
 	//////////// SDIO ///////////
 	inout   [3:0] SDIO_DAT,
@@ -110,15 +109,14 @@ module sys_top
 
 	////////// I/O ALT /////////
 	//output        SD_SPI_CS,
-	//input         SD_SPI_MISO,
-	//output        SD_SPI_CLK,
-	//output        SD_SPI_MOSI,
+	input         SD_SPI_MISO,
+	output        SD_SPI_CLK,
+	output        SD_SPI_MOSI,
 
-	//inout         SDCD_SPDIF,
+	inout         SDCD_SPDIF,
 	output        IO_SCL,
-	//inout         IO_SDA,
-   output        IO_SDA,
-	
+	inout         IO_SDA,
+
 	////////// ADC //////////////
 	output        ADC_SCK,
 	input         ADC_SDO,
@@ -139,33 +137,33 @@ module sys_top
 );
 
 //////////////////////  Secondary SD  ///////////////////////////////////
-// wire SD_CS, SD_CLK, SD_MOSI;
+wire SD_CS, SD_CLK, SD_MOSI;
 
-// `ifdef ARCADE_SYS
-// 	assign SD_CS   = 1'bZ;
-// 	assign SD_CLK  = 1'bZ;
-// 	assign SD_MOSI = 1'bZ;
-// `else
-// 	`ifndef DUAL_SDRAM
-// 		wire sd_miso = SW[3] | SDIO_DAT[0];
-// 	`else
-// 		wire sd_miso = 1;
-// 	`endif
-// 	wire SD_MISO = mcp_sdcd ? sd_miso : SD_SPI_MISO;
-// `endif
+`ifdef ARCADE_SYS
+	assign SD_CS   = 1'bZ;
+	assign SD_CLK  = 1'bZ;
+	assign SD_MOSI = 1'bZ;
+`else
+	`ifndef DUAL_SDRAM
+		wire sd_miso = SW[3] | SDIO_DAT[0];
+	`else
+		wire sd_miso = 1;
+	`endif
+	wire SD_MISO = mcp_sdcd ? sd_miso : SD_SPI_MISO;
+`endif
 
-// `ifndef DUAL_SDRAM
-// 	assign SDIO_DAT[2:1]= 2'bZZ;
-// 	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
-// 	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
-// 	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
-// 	//assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
-// `else
-// 	//assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
-// `endif
+`ifndef DUAL_SDRAM
+	assign SDIO_DAT[2:1]= 2'bZZ;
+	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
+	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
+	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
+//	assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
+`else
+//	assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
+`endif
 
-// assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ : SD_CLK;
-// assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
+assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ : SD_CLK;
+assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
 
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
@@ -195,18 +193,18 @@ wire btn_r, btn_o, btn_u;
 
 wire [2:0] mcp_btn;
 wire       mcp_sdcd;
-//mcp23009 mcp23009
-//(
-//	.clk(FPGA_CLK2_50),
-//
-//	.btn(mcp_btn),
-//	.led({led_p, led_d, led_u}),
-//	.sd_cd(mcp_sdcd),
-//
-//	.scl(IO_SCL),
-//	.sda(IO_SDA)
-//);
-assign IO_SDA = 1'b0;
+mcp23009 mcp23009
+(
+	.clk(FPGA_CLK2_50),
+
+	.btn(mcp_btn),
+	.led({led_p, led_d, led_u}),
+	.sd_cd(mcp_sdcd),
+
+	.scl(IO_SCL),
+	.sda(IO_SDA)
+);
+
 
 reg btn_user, btn_osd;
 always @(posedge FPGA_CLK2_50) begin
@@ -222,8 +220,7 @@ always @(posedge FPGA_CLK2_50) begin
 		if(&deb_user) btn_user <= 1;
 		if(!deb_user) btn_user <= 0;
 
-		//deb_osd <= {deb_osd[6:0], btn_o | ~KEY[0]};
-deb_osd <= {deb_osd[6:0], btn_o | user_osd | ~KEY[0]};
+		deb_osd <= {deb_osd[6:0], btn_o | user_osd | ~KEY[0]};
 		if(&deb_osd) btn_osd <= 1;
 		if(!deb_osd) btn_osd <= 0;
 	end
@@ -839,7 +836,7 @@ always @(posedge clk_vid) begin
 		ary <= ARY[11:0];
 		xy  <= ARX[12] | ARY[12];
 	end
-
+	
 	ar_md_start <= 0;
 	state <= state + 1'd1;
 	case(state)
@@ -848,7 +845,7 @@ always @(posedge clk_vid) begin
 				vmini <= LFB_VMIN;
 				hmaxi <= LFB_HMAX;
 				vmaxi <= LFB_VMAX;
-				state<= 0;
+				state <= 0;
 			end
 			else if(FREESCALE || !arx || !ary) begin
 				wcalc <= hdmi_width;
@@ -939,7 +936,7 @@ always @(posedge clk_pal) begin
 
 	old_vs1 <= hdmi_vs;
 	old_vs2 <= old_vs1;
-
+	
 	if(~old_vs2 & old_vs1 & ~FB_FMT[2] & FB_FMT[1] & FB_FMT[0] & FB_EN) pal_req <= ~pal_req;
 end
 
@@ -1448,7 +1445,6 @@ assign user_in[5] = SW[1] | USER_IO[5];
 assign user_in[6] =         USER_IO[6];
 assign user_in[7] =         USER_IO[7];
 
-
 ///////////////////  User module connection ////////////////////////////
 
 wire        clk_sys;
@@ -1486,7 +1482,6 @@ sync_fix sync_h(clk_vid, hs_emu, hs_fix);
 wire  [7:0] user_out, user_in;
 wire  [1:0] user_mode;
 wire        user_osd;
-
 `ifndef USE_SDRAM
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = {39'bZ};
 `endif
@@ -1590,7 +1585,6 @@ emu emu
 	.AUDIO_L(audio_l),
 	.AUDIO_R(audio_r),
 	.AUDIO_S(audio_s),
-	.BUZZER(BUZZER),
 
 `ifndef ARCADE_SYS
 	.AUDIO_MIX(audio_mix),
@@ -1656,10 +1650,9 @@ emu emu
 	.UART_DTR(uart_dsr),
 	.UART_DSR(uart_dtr),
 `endif
-
 	.USER_OSD(user_osd),
-.USER_MODE(user_mode),
-.USER_OUT(user_out),
+	.USER_MODE(user_mode),
+	.USER_OUT(user_out),
 	.USER_IN(user_in)
 );
 
