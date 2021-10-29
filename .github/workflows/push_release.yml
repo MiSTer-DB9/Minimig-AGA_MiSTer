@@ -6,6 +6,7 @@ on:
       - MiSTer
   repository_dispatch:
     types: [push_release]
+  workflow_dispatch:
 
 jobs:
   build:
