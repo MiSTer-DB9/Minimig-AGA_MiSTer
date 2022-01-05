@@ -14,7 +14,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [47:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -283,7 +283,7 @@ wire  [7:0] uart_mode;
 hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0)) hps_io
 (
 	.clk_sys(clk_sys),
-	.HPS_BUS({HPS_BUS[45:42],ce_pix,HPS_BUS[40:0]}),
+	.HPS_BUS({HPS_BUS[47:42],ce_pix,HPS_BUS[40:0]}),
 
 	.status(status),
 	.status_menumask({mt32_cfg,1'b1}), //mt32_available (se deja a 1 para que salgan siempre las opciones mt32 y se pueda activar el disable)
@@ -320,7 +320,7 @@ wire [35:0] EXT_BUS;
 hps_ext hps_ext(.*, .ide_req(ide_fast ? ide_f_req : ide_c_req),  .ide_din(ide_fast ? ide_f_readdata : ide_c_readdata));
 
 assign LED_POWER[1] = 1;
-assign LED_DISK     = {1'b1, ide_fast ? ide_f_led : ide_c_led};
+assign LED_DISK     = {1'b0, ide_fast ? ide_f_led : ide_c_led};
 
 assign VGA_SCALER   = FB_EN;
 
@@ -573,6 +573,8 @@ wire        ide_f_irq;
 wire  [5:0] ide_f_req;
 wire [15:0] ide_f_readdata;
 
+// fastchip is working on CPU clock.
+// Only high performance 68020 devices are inside
 fastchip fastchip
 (
 	.clk          (clk_114           ),
@@ -592,16 +594,27 @@ fastchip fastchip
 	.rnw          (fastchip_rnw      ),
 	.longword     (fastchip_lw       ),
 
+	//RTG framebuffer control
+	.rtg_ena      (FB_EN             ),
+	.rtg_hsize    (FB_WIDTH          ),
+	.rtg_vsize    (FB_HEIGHT         ),
+	.rtg_format   (FB_FORMAT         ),
+	.rtg_base     (FB_BASE           ),
+	.rtg_stride   (FB_STRIDE         ),
+	.rtg_pal_clk  (FB_PAL_CLK        ),
+	.rtg_pal_dw   (FB_PAL_DOUT       ),
+	.rtg_pal_dr   (FB_PAL_DIN        ),
+	.rtg_pal_a    (FB_PAL_ADDR       ),
+	.rtg_pal_wr   (FB_PAL_WR         ),
+
 	.ide_ena      (ide_ena & ide_fast),
 	.ide_irq      (ide_f_irq         ),
-
 	.ide_req      (ide_f_req         ),
 	.ide_address  (ide_addr          ),
 	.ide_write    (ide_wr            ),
 	.ide_writedata(ide_dout          ),
 	.ide_read     (ide_rd            ),
 	.ide_readdata (ide_f_readdata    ),
-
 	.ide_led      (ide_f_led         )
 );
 
@@ -731,19 +744,6 @@ minimig minimig
 	.scanline     (fx               ),
 	//.ce_pix       (ce_pix           ),
 	.res          (res              ),
-
-	//RTG framebuffer control
-	.rtg_ena      (FB_EN            ),
-	.rtg_hsize    (FB_WIDTH         ),
-	.rtg_vsize    (FB_HEIGHT        ),
-	.rtg_format   (FB_FORMAT        ),
-	.rtg_base     (FB_BASE          ),
-	.rtg_stride   (FB_STRIDE        ),
-	.rtg_pal_clk  (FB_PAL_CLK       ),
-	.rtg_pal_dw   (FB_PAL_DOUT      ),
-	.rtg_pal_dr   (FB_PAL_DIN       ),
-	.rtg_pal_a    (FB_PAL_ADDR      ),
-	.rtg_pal_wr   (FB_PAL_WR        ),
 
 	//audio
 	.ldata        (ldata            ), // left DAC data
