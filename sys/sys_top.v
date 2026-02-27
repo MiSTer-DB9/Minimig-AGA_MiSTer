@@ -46,15 +46,19 @@ module sys_top
 	//////////// SDR ///////////
 	output [12:0] SDRAM_A,
 	inout  [15:0] SDRAM_DQ,
+`ifndef SECOND_MT32
 	output        SDRAM_DQML,
 	output        SDRAM_DQMH,
+`endif
 	output        SDRAM_nWE,
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
 	output        SDRAM_nCS,
 	output  [1:0] SDRAM_BA,
 	output        SDRAM_CLK,
+`ifndef SECOND_MT32
 	output        SDRAM_CKE,
+`endif
 
 `ifdef MISTER_DUAL_SDRAM
 	////////// SDR #2 //////////
@@ -81,10 +85,12 @@ module sys_top
 	output		  AUDIO_R,
 	output		  AUDIO_SPDIF,
 
+`ifndef SECOND_MT32
 	//////////// SDIO ///////////
 	inout   [3:0] SDIO_DAT,
 	inout         SDIO_CMD,
 	output        SDIO_CLK,
+`endif
 
 	//////////// I/O ///////////
 	output        LED_USER,
@@ -95,6 +101,7 @@ module sys_top
 	input         BTN_RESET,
 `endif
 
+`ifndef SECOND_MT32
 	////////// I/O ALT /////////
 	//output        SD_SPI_CS,
 	input         SD_SPI_MISO,
@@ -104,6 +111,7 @@ module sys_top
 	inout         SDCD_SPDIF,
 	output        IO_SCL,
 	inout         IO_SDA,
+`endif
 
 	////////// ADC //////////////
 	output        ADC_SCK,
@@ -122,8 +130,13 @@ module sys_top
 
 	///////// USER IO ///////////
 	inout   [7:0] USER_IO
+`ifdef SECOND_MT32
+	,
+	inout   [7:0] USER_IO2
+`endif
 );
 
+`ifndef SECOND_MT32
 //////////////////////  Secondary SD  ///////////////////////////////////
 wire SD_CS, SD_CLK, SD_MOSI, SD_MISO, SD_CD;
 
@@ -143,6 +156,8 @@ wire SD_CS, SD_CLK, SD_MOSI, SD_MISO, SD_CD;
 	assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
 `endif
 
+`endif
+
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
 reg [7:0] led_overtake = 0;
@@ -156,6 +171,13 @@ wire led_locked;
 //LEDs on de10-nano board
 assign LED = (led_overtake & led_state) | (~led_overtake & {1'b0,led_locked,1'b0, ~led_p, 1'b0, ~led_d, 1'b0, ~led_u});
 
+
+`ifdef SECOND_MT32
+wire btn_r, btn_o, btn_u;
+wire io_dig = SW[3];
+assign {btn_r,btn_o,btn_u} = ~{BTN_RESET,BTN_OSD,BTN_USER};
+
+`else
 wire [2:0] mcp_btn;
 wire       mcp_sdcd;
 wire       mcp_en;
@@ -206,6 +228,7 @@ end
 wire btn_r = (mcp_en | SW[3]) ? mcp_btn[1] : (BTN_EN & ~BTN_RESET);
 wire btn_o = (mcp_en | SW[3]) ? mcp_btn[2] : (BTN_EN & ~BTN_OSD  );
 wire btn_u = (mcp_en | SW[3]) ? mcp_btn[0] : (BTN_EN & ~BTN_USER );
+`endif
 
 reg btn_user, btn_osd;
 always @(posedge FPGA_CLK2_50) begin
@@ -1544,14 +1567,23 @@ end
 
 /////////////////////////  Audio output  ////////////////////////////////
 
+`ifndef SECOND_MT32
 assign SDCD_SPDIF = (mcp_en & ~spdif) ? 1'b0 : 1'bZ;
+`endif
 
 `ifndef MISTER_DUAL_SDRAM
 	wire analog_l, analog_r;
 
+`ifdef SECOND_MT32
+	assign AUDIO_SPDIF = SW[0] ? HDMI_LRCLK : spdif;
+	assign AUDIO_R     = SW[0] ? HDMI_I2S   : analog_r;
+	assign AUDIO_L     = SW[0] ? HDMI_SCLK  : analog_l;
+`else
 	assign AUDIO_SPDIF = av_dis ? 1'bZ : (SW[0] | mcp_en) ? HDMI_LRCLK : spdif;
 	assign AUDIO_R     = av_dis ? 1'bZ : (SW[0] | mcp_en) ? HDMI_I2S   : analog_r;
 	assign AUDIO_L     = av_dis ? 1'bZ : (SW[0] | mcp_en) ? HDMI_SCLK  : analog_l;
+`endif
+
 `endif
 
 assign HDMI_MCLK = clk_audio;
@@ -1647,21 +1679,49 @@ audio_out audio_out
 
 assign USER_IO[0] = |user_mode   ? user_out[0] : !user_out[0]  ? 1'b0 : 1'bZ;
 assign USER_IO[1] = user_mode[0] ? user_out[1] : !user_out[1]  ? 1'b0 : 1'bZ;
+`ifdef SECOND_MT32
+assign USER_IO[2] = !user_out[2] ? 1'b0 : 1'bZ;
+assign USER_IO[3] = !user_out[3] ? 1'b0 : 1'bZ;
+assign USER_IO[4] = user_mode[1] ? user_out[4] : !user_out[4] ? 1'b0 : 1'bZ;
+assign USER_IO[5] = !user_out[5] ? 1'b0 : 1'bZ;
+assign USER_IO[6] = !user_out[6] ? 1'b0 : 1'bZ;
+assign USER_IO[7] = !user_out[7] ? 1'b0 : 1'bZ;
+`else
 assign USER_IO[2] = !(SW[1] ? HDMI_I2S   : user_out[2]) ? 1'b0 : 1'bZ;
 assign USER_IO[3] =                       !user_out[3]  ? 1'b0 : 1'bZ;
 assign USER_IO[4] = user_mode[1] ? user_out[4] : !(SW[1] ? HDMI_SCLK  : user_out[4]) ? 1'b0 : 1'bZ;
 assign USER_IO[5] = !(SW[1] ? HDMI_LRCLK : user_out[5]) ? 1'b0 : 1'bZ;
 assign USER_IO[6] =                       !user_out[6]  ? 1'b0 : 1'bZ;
 assign USER_IO[7] =                       !user_out[7]  ? 1'b0 : 1'bZ;
-
+`endif
+`ifdef SECOND_MT32
 assign user_in[0] = |user_mode   ? 1'b0 : USER_IO[0];
 assign user_in[1] = user_mode[0] ? 1'b0 : USER_IO[1];
+assign user_in[2] = USER_IO[2];
+assign user_in[3] = USER_IO[3];
+assign user_in[4] = user_mode[1] ? 1'b0 : USER_IO[4];
+assign user_in[5] = USER_IO[5];
+assign user_in[6] = USER_IO[6];
+assign user_in[7] = USER_IO[7];
+
+assign USER_IO2[0] = !user_out2[0] ? 1'b0 : 1'bZ;
+assign USER_IO2[1] = !user_out2[1] ? 1'b0 : 1'bZ;
+assign USER_IO2[2] = !user_out2[2] ? 1'b0 : 1'bZ;
+assign USER_IO2[3] = !user_out2[3] ? 1'b0 : 1'bZ;
+assign USER_IO2[4] = !user_out2[4] ? 1'b0 : 1'bZ;
+assign USER_IO2[5] = !user_out2[5] ? 1'b0 : 1'bZ;
+assign USER_IO2[6] = !user_out2[6] ? 1'b0 : 1'bZ;
+assign USER_IO2[7] = !user_out2[7] ? 1'b0 : 1'bZ;
+
+assign user_in2 = USER_IO2;
+`else
 assign user_in[2] = SW[1] | USER_IO[2];
 assign user_in[3] =         USER_IO[3];
 assign user_in[4] = user_mode[1] ? 1'b0 : SW[1] | USER_IO[4];
 assign user_in[5] = SW[1] | USER_IO[5];
 assign user_in[6] =         USER_IO[6];
 assign user_in[7] =         USER_IO[7];
+`endif
 
 ///////////////////  User module connection ////////////////////////////
 
@@ -1696,6 +1756,9 @@ sync_fix sync_v(clk_vid, vs_emu, vs_fix);
 sync_fix sync_h(clk_vid, hs_emu, hs_fix);
 
 wire  [7:0] user_out, user_in;
+`ifdef SECOND_MT32
+wire  [7:0] user_out2, user_in2;
+`endif
 wire  [1:0] user_mode;
 wire        user_osd;
 assign clk_ihdmi= clk_vid;
@@ -1826,15 +1889,19 @@ emu emu
 
 	.SDRAM_DQ(SDRAM_DQ),
 	.SDRAM_A(SDRAM_A),
+`ifndef SECOND_MT32
 	.SDRAM_DQML(SDRAM_DQML),
 	.SDRAM_DQMH(SDRAM_DQMH),
+`endif
 	.SDRAM_BA(SDRAM_BA),
 	.SDRAM_nCS(SDRAM_nCS),
 	.SDRAM_nWE(SDRAM_nWE),
 	.SDRAM_nRAS(SDRAM_nRAS),
 	.SDRAM_nCAS(SDRAM_nCAS),
 	.SDRAM_CLK(SDRAM_CLK),
+`ifndef SECOND_MT32
 	.SDRAM_CKE(SDRAM_CKE),
+`endif
 
 `ifdef MISTER_DUAL_SDRAM
 	.SDRAM2_DQ(SDRAM2_DQ),
@@ -1851,11 +1918,13 @@ emu emu
 	.BUTTONS(btn),
 	.OSD_STATUS(osd_status),
 
+`ifndef SECOND_MT32
 	.SD_SCK(SD_CLK),
 	.SD_MOSI(SD_MOSI),
 	.SD_MISO(SD_MISO),
 	.SD_CS(SD_CS),
 	.SD_CD(SD_CD),
+`endif
 
 	.UART_CTS(uart_rts),
 	.UART_RTS(uart_cts),
@@ -1867,6 +1936,11 @@ emu emu
 	.USER_MODE(user_mode),
 	.USER_OUT(user_out),
 	.USER_IN(user_in)
+`ifdef SECOND_MT32
+	,
+	.USER_OUT2(user_out2),
+	.USER_IN2(user_in2)
+`endif
 );
 
 endmodule

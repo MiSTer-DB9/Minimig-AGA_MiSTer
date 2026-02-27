@@ -159,6 +159,8 @@ module emu
 	output  [1:0] USER_MODE,
 	input   [7:0] USER_IN,
 	output  [7:0] USER_OUT,
+	input   [7:0] USER_IN2,
+	output  [7:0] USER_OUT2,
 
 	input         OSD_STATUS
 );
@@ -171,6 +173,9 @@ wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
 //assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111011,JOY_CLK,JOY_LOAD} : '1;
 assign       USER_MODE = JOY_FLAG[2:1] ;
 assign       USER_OSD  = JOY_DB1[10] & JOY_DB1[6];
+`ifdef SECOND_MT32
+assign       USER_OUT2[6:0] = USER_OUT_MT32;
+`endif
 
 reg  db9md_ena=1'b0;
 reg  db9_1p_ena=1'b0,db9_2p_ena=1'b0;
@@ -209,9 +214,13 @@ joy_db15 joy_db15
 
 always_comb begin
 	USER_OUT    = 8'hFF; 
+`ifndef SECOND_MT32
 	if( ~mt32_disable )begin
 		USER_OUT[6:0] = USER_OUT_MT32;
 	end else if (JOY_FLAG[1]) begin
+`else
+	if (JOY_FLAG[1]) begin
+`endif
 		USER_OUT[0] = JOY_LOAD;
 		USER_OUT[1] = JOY_CLK;
 		USER_OUT[6] = 1'b1;
@@ -1144,7 +1153,11 @@ wire mt32_available;
 wire mt32_use  = mt32_available & ~mt32_disable;
 wire mt32_mute = mt32_available &  mt32_disable;
 
+`ifndef SECOND_MT32
 wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : USER_IN[6:0];
+`else
+wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : USER_IN2[6:0];
+`endif
 wire [6:0] USER_OUT_MT32;
 mt32pi mt32pi
 (
