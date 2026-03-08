@@ -159,31 +159,40 @@ module emu
 	output  [1:0] USER_MODE,
 	input   [7:0] USER_IN,
 	output  [7:0] USER_OUT,
+// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: second USER_IO port for mt32-pi
+`ifdef SECOND_MT32
+	input   [7:0] USER_IN2,
+	output  [7:0] USER_OUT2,
+`endif
+// [MiSTer-DB9 END]
 
 	input         OSD_STATUS
 );
 
-wire         CLK_JOY = CLK_50M & mt32_disable;         //Assign clock between 40-50Mhz
-wire   [2:0] JOY_FLAG = mt32_disable ? {db9md_ena,~db9md_ena,1'b0} : 3'b000;   //Assign 3 bits of status (31:29) o (63:61)
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
+wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
+// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: when MT32 is on USER_IO2, no conflict with DB9
+`ifndef SECOND_MT32
+wire   [2:0] JOY_FLAG  = mt32_use ? 3'b000 : {status[62], status[63], status[61]};
+`else
+wire         mt32_on_primary = status[60]; // 0=USER_IO2 (default), 1=USER_IO
+wire   [2:0] JOY_FLAG  = (mt32_on_primary & mt32_use) ? 3'b000 : {status[62], status[63], status[61]};
+`endif
+// [MiSTer-DB9 END]
 wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
 wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
 wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
-//assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111011,JOY_CLK,JOY_LOAD} : '1;
 assign       USER_MODE = JOY_FLAG[2:1] ;
-assign       USER_OSD  = JOY_DB1[10] & JOY_DB1[6];
+assign       USER_OSD  = joydb_1[10] & joydb_1[6];  // Start+C opens OSD
+// [MiSTer-DB9 END]
 
-reg  db9md_ena=1'b0;
-reg  db9_1p_ena=1'b0,db9_2p_ena=1'b0;
-wire db9_status = db9md_ena ? 1'b1 : USER_IN[7];
-always @(posedge clk_sys) 
- begin
-	if(~db9md_ena & ~db9_status) db9md_ena <= 1'b1; 
-   if(JOYDB9MD_1[2] || JOYDB15_1[2]) db9_1p_ena <= 1'b1;
-	if(~JOYDB9MD_1[2] && JOYDB9MD_2[2] || JOYDB15_2[2]) db9_2p_ena <= 1'b1; //Se niega el del player 1 por si no hay Splitter que no se duplique
- end
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joystick mux and controller modules
 
-wire [15:0] JOY_DB1 = db9md_ena ? JOYDB9MD_1 : JOYDB15_1;
-wire [15:0] JOY_DB2 = db9md_ena ? JOYDB9MD_2 : JOYDB15_2;
+// Unified joystick signals from DB controllers
+wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
+wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
+wire        joydb_1ena = |JOY_FLAG[2:1]              ;
+wire        joydb_2ena = |JOY_FLAG[2:1] & JOY_FLAG[0];
 
 reg [15:0] JOYDB9MD_1,JOYDB9MD_2;
 joy_db9md joy_db9md
@@ -193,7 +202,7 @@ joy_db9md joy_db9md
   .joy_mdsel ( JOY_MDSEL  ),
   .joy_in    ( JOY_MDIN   ),
   .joystick1 ( JOYDB9MD_1 ),
-  .joystick2 ( JOYDB9MD_2 )	  
+  .joystick2 ( JOYDB9MD_2 )
 );
 
 reg [15:0] JOYDB15_1,JOYDB15_2;
@@ -204,30 +213,47 @@ joy_db15 joy_db15
   .JOY_DATA  ( JOY_DATA  ),
   .JOY_LOAD  ( JOY_LOAD  ),
   .joystick1 ( JOYDB15_1 ),
-  .joystick2 ( JOYDB15_2 )	  
+  .joystick2 ( JOYDB15_2 )
 );
 
+// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: route mt32-pi output to USER_IO2 or USER_IO
+`ifdef SECOND_MT32
+assign       USER_OUT2 = mt32_on_primary ? 8'hFF : {1'b1, USER_OUT_MT32};
+`endif
+// [MiSTer-DB9 END]
+
+// USER_OUT routing: DB9/DB15 joystick signals or MT32-pi
+// JOY_FLAG is zeroed when mt32_use is active and MT32 is on primary USER_IO,
+// so the else-fallback routes to MT32 when no DB controller is selected.
+// In SECOND_MT32 mode with MT32 on USER_IO2, USER_OUT is joystick-only.
 always_comb begin
-	USER_OUT    = 8'hFF; 
-	if( ~mt32_disable )begin
-		USER_OUT[6:0] = USER_OUT_MT32;
-	end else if (JOY_FLAG[1]) begin
+	USER_OUT = 8'hFF;
+	if (JOY_FLAG[1]) begin
 		USER_OUT[0] = JOY_LOAD;
 		USER_OUT[1] = JOY_CLK;
-		USER_OUT[6] = 1'b1;
-		USER_OUT[4] = 1'b1;
-	end else if (JOY_FLAG[2]) begin
+	end
+	else if (JOY_FLAG[2]) begin
 		USER_OUT[0] = JOY_MDSEL;
-		USER_OUT[1] = 1'b1;
-		USER_OUT[6] = 1'b1;
 		USER_OUT[4] = JOY_SPLIT;
 	end
+// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: MT32 fallback on USER_IO when mt32_on_primary or standard build
+`ifdef SECOND_MT32
+	else if (mt32_on_primary) begin
+		USER_OUT[6:0] = USER_OUT_MT32;
+	end
+`else
+	else begin
+		USER_OUT[6:0] = USER_OUT_MT32;
+	end
+`endif
+// [MiSTer-DB9 END]
 end
 
-wire [15:0] JOY0 = db9_1p_ena ? JOY_DB1 : JOY0_USB;
-wire [15:0] JOY1 = db9_2p_ena ? JOY_DB2 : db9_1p_ena ? JOY0_USB : JOY1_USB;
-wire [15:0] JOY2 = db9_2p_ena ? JOY0_USB : db9_1p_ena ? JOY1_USB : JOY2_USB;
-wire [15:0] JOY3 = db9_2p_ena ? JOY1_USB : db9_1p_ena ? JOY2_USB : JOY3_USB;
+wire [15:0] JOY0 = joydb_1ena ? (OSD_STATUS ? 16'b0 : joydb_1) : JOY0_USB;
+wire [15:0] JOY1 = joydb_2ena ? (OSD_STATUS ? 16'b0 : joydb_2) : joydb_1ena ? JOY0_USB : JOY1_USB;
+wire [15:0] JOY2 = joydb_2ena ? JOY0_USB : joydb_1ena ? JOY1_USB : JOY2_USB;
+wire [15:0] JOY3 = joydb_2ena ? JOY1_USB : joydb_1ena ? JOY2_USB : JOY3_USB;
+// [MiSTer-DB9 END]
 
 assign ADC_BUS  = 'Z;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -294,11 +320,19 @@ hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0)) hps_io
 	.HPS_BUS({HPS_BUS[48:42],ce_pix,HPS_BUS[40:0]}),
 
 	.status(status),
-	.status_menumask({mt32_cfg,1'b1}), //mt32_available (se deja a 1 para que salgan siempre las opciones mt32 y se pueda activar el disable)
+	// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: add SECOND_MT32 indicator bit to menumask
+`ifdef SECOND_MT32
+	.status_menumask({1'b1, mt32_cfg, 1'b1}),
+`else
+	.status_menumask({mt32_cfg, 1'b1}), //mt32_available (se deja a 1 para que salgan siempre las opciones mt32 y se pueda activar el disable)
+`endif
+	// [MiSTer-DB9 END]
 	.info_req(mt32_info_req),
 	.info(mt32_info_disp),
 
-	.joy_raw(JOY_DB1[5:0] | JOY_DB2[5:0]),
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
+	.joy_raw(OSD_STATUS ? ({USER_MODE, joydb_1[11:0] | joydb_2[11:0]}) : 14'b0),
+	// [MiSTer-DB9 END]
 	.joystick_0(JOY0_USB),
 	.joystick_1(JOY1_USB),
 	.joystick_2(JOY2_USB),
@@ -1144,7 +1178,13 @@ wire mt32_available;
 wire mt32_use  = mt32_available & ~mt32_disable;
 wire mt32_mute = mt32_available &  mt32_disable;
 
-wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : USER_IN[6:0];
+// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: mt32-pi reads from USER_IO2 or USER_IO based on OSD option
+`ifndef SECOND_MT32
+wire [6:0] USER_IN_MT32 = JOY_FLAG[2:1] ? 1 : USER_IN[6:0];
+`else
+wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : mt32_on_primary ? (JOY_FLAG[2:1] ? 1 : USER_IN[6:0]) : USER_IN2[6:0];
+`endif
+// [MiSTer-DB9 END]
 wire [6:0] USER_OUT_MT32;
 mt32pi mt32pi
 (

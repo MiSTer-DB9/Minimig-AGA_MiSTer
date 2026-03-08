@@ -1,3 +1,15 @@
+# [MiSTer-DB9 BEGIN] - SECOND_MT32 support: read macro to switch pin assignments
+set vlog_macros [get_all_global_assignments -name VERILOG_MACRO]
+set SECOND_MT32 0
+
+foreach_in_collection m $vlog_macros {
+    if { [string equal "SECOND_MT32=1" [lindex $m 2]] } {
+        set SECOND_MT32 1
+        break
+    }
+}
+# [MiSTer-DB9 END]
+
 set_global_assignment -name FAMILY "Cyclone V"
 set_global_assignment -name DEVICE 5CSEBA6U23I7
 set_global_assignment -name DEVICE_FILTER_PACKAGE UFBGA
@@ -16,6 +28,17 @@ set_location_assignment PIN_V10 -to ADC_SCK
 set_location_assignment PIN_AC4 -to ADC_SDI
 set_location_assignment PIN_AD4 -to ADC_SDO
 
+# [MiSTer-DB9 BEGIN] - SECOND_MT32 support: ARDUINO (USERIO2) vs I2C pins
+if {$SECOND_MT32 == 1} {
+#============================================================
+# ARDUINO
+#============================================================
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ARDUINO_IO[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ARDUINO_IO[*]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to ARDUINO_IO[*]
+
+} else {
+
 #============================================================
 # I2C LEDS/BUTTONS
 #============================================================
@@ -24,6 +47,8 @@ set_location_assignment PIN_AG9 -to IO_SDA
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to IO_S*
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to IO_S*
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to IO_S*
+}
+# [MiSTer-DB9 END]
 
 #============================================================
 # USER PORT
@@ -40,6 +65,25 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to USER_IO[*]
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO[*]
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO[*]
 
+# [MiSTer-DB9 BEGIN] - SECOND_MT32 support: USER_IO2 vs SDCD_SPDIF pin assignments
+if {$SECOND_MT32 == 1} {
+#============================================================
+# USER PORT 2
+#============================================================
+set_location_assignment PIN_AF13 -to USER_IO2[7]
+set_location_assignment PIN_AG13 -to USER_IO2[6]
+set_location_assignment PIN_AG10 -to USER_IO2[5]
+set_location_assignment PIN_AG9  -to USER_IO2[4]
+set_location_assignment PIN_U14  -to USER_IO2[3]
+set_location_assignment PIN_U13  -to USER_IO2[2]
+set_location_assignment PIN_AG8  -to USER_IO2[1]
+set_location_assignment PIN_AH8  -to USER_IO2[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to USER_IO2[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO2[*]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO2[*]
+
+} else {
+
 #============================================================
 # SDIO_CD or SPDIF_OUT
 #============================================================
@@ -47,6 +91,8 @@ set_location_assignment PIN_AH7 -to SDCD_SPDIF
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDCD_SPDIF
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDCD_SPDIF
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDCD_SPDIF
+}
+# [MiSTer-DB9 END]
 
 #============================================================
 # SDRAM
@@ -82,10 +128,16 @@ set_location_assignment PIN_AG14 -to SDRAM_DQ[12]
 set_location_assignment PIN_AD5 -to SDRAM_DQ[13]
 set_location_assignment PIN_AF4 -to SDRAM_DQ[14]
 set_location_assignment PIN_AH3 -to SDRAM_DQ[15]
+# [MiSTer-DB9 BEGIN] - SECOND_MT32 support: SDRAM_DQML/DQMH/CKE pins repurposed for USER_IO2
+if {$SECOND_MT32 != 1} {
 set_location_assignment PIN_AG13 -to SDRAM_DQML
 set_location_assignment PIN_AF13 -to SDRAM_DQMH
+}
 set_location_assignment PIN_AD20 -to SDRAM_CLK
+if {$SECOND_MT32 != 1} {
 set_location_assignment PIN_AG10 -to SDRAM_CKE
+}
+# [MiSTer-DB9 END]
 set_location_assignment PIN_AA19 -to SDRAM_nWE
 set_location_assignment PIN_AA18 -to SDRAM_nCAS
 set_location_assignment PIN_Y18 -to SDRAM_nCS
@@ -98,6 +150,8 @@ set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[*]
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[*]
 set_instance_assignment -name ALLOW_SYNCH_CTRL_USAGE OFF -to *|SDRAM_*
 
+# [MiSTer-DB9 BEGIN] - SECOND_MT32 support: SPI SD pins repurposed for USER_IO2
+if {$SECOND_MT32 != 1} {
 #============================================================
 # SPI SD
 #============================================================
@@ -108,6 +162,8 @@ set_location_assignment PIN_U13  -to SD_SPI_MOSI
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SD_SPI*
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SD_SPI*
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SD_SPI*
+}
+# [MiSTer-DB9 END]
 
 
 #============================================================
