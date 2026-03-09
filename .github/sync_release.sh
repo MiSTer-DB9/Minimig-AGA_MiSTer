@@ -4,10 +4,10 @@
 set -euo pipefail
 
 UPSTREAM_REPO="https://github.com/MiSTer-devel/Minimig-AGA_MiSTer.git"
-CORE_NAME=(Minimig MinimigUSERIO2)
+CORE_NAME=(MinimigUSERIO2 Minimig)
 MAIN_BRANCH="MiSTer"
-COMPILATION_INPUT=(Minimig.qpf Minimig_USERIO2.qpf)
-COMPILATION_OUTPUT=(output_files/Minimig.rbf output_files/Minimig_USERIO2.rbf)
+COMPILATION_INPUT=(Minimig_USERIO2.qpf Minimig.qpf)
+COMPILATION_OUTPUT=(output_files/Minimig_USERIO2.rbf output_files/Minimig.rbf)
 QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.2.docker0"
 
 echo "Fetching upstream:"

@@ -3,10 +3,10 @@
 
 set -euo pipefail
 
-CORE_NAME=(Minimig MinimigUSERIO2)
+CORE_NAME=(MinimigUSERIO2 Minimig)
 MAIN_BRANCH="MiSTer"
-COMPILATION_INPUT=(Minimig.qpf Minimig_USERIO2.qpf)
-COMPILATION_OUTPUT=(output_files/Minimig.rbf output_files/Minimig_USERIO2.rbf)
+COMPILATION_INPUT=(Minimig_USERIO2.qpf Minimig.qpf)
+COMPILATION_OUTPUT=(output_files/Minimig_USERIO2.rbf output_files/Minimig.rbf)
 QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.2.docker0"
 
 if [[ "${FORCED:-false}" != "true" ]] && [[ "$(git log -n 1 --pretty=format:%an)" == "The CI/CD Bot" ]] ; then
