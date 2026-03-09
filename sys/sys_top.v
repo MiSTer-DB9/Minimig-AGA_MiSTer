@@ -188,7 +188,16 @@ assign LED = (led_overtake & led_state) | (~led_overtake & {1'b0,led_locked,1'b0
 `ifdef SECOND_MT32
 wire btn_r, btn_o, btn_u;
 wire io_dig = SW[3];
+wire mcp_en = 1'b0;
 assign {btn_r,btn_o,btn_u} = ~{BTN_RESET,BTN_OSD,BTN_USER};
+
+`ifndef MISTER_DUAL_SDRAM
+	wire   av_dis    = io_dig | VGA_EN;
+	assign LED_POWER = av_dis ? 1'bZ : led_p ? 1'bZ : 1'b0;
+	assign LED_HDD   = av_dis ? 1'bZ : led_d ? 1'bZ : 1'b0;
+	assign LED_USER  = VGA_TX_CLK;
+	wire   BTN_DIS   = VGA_EN;
+`endif
 
 `else
 // [MiSTer-DB9 END]
