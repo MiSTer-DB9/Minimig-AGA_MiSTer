@@ -242,7 +242,7 @@ always_comb begin
 		USER_OUT[6:0] = USER_OUT_MT32;
 	end
 `else
-	else begin
+	else if (mt32_use) begin
 		USER_OUT[6:0] = USER_OUT_MT32;
 	end
 `endif
@@ -1180,7 +1180,7 @@ wire mt32_mute = mt32_available &  mt32_disable;
 
 // [MiSTer-DB9 BEGIN] - SECOND_MT32 support: mt32-pi reads from USER_IO2 or USER_IO based on OSD option
 `ifndef SECOND_MT32
-wire [6:0] USER_IN_MT32 = JOY_FLAG[2:1] ? 1 : USER_IN[6:0];
+wire [6:0] USER_IN_MT32 = (JOY_FLAG[2:1] | mt32_disable) ? 7'd1 : USER_IN[6:0];
 `else
 wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : mt32_on_primary ? (JOY_FLAG[2:1] ? 1 : USER_IN[6:0]) : USER_IN2[6:0];
 `endif
