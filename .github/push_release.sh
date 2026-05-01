@@ -26,7 +26,7 @@ CORE_NAME=(MinimigUSERIO2 Minimig)
 MAIN_BRANCH="MiSTer"
 COMPILATION_INPUT=(Minimig_USERIO2.qpf Minimig.qpf)
 COMPILATION_OUTPUT=(output_files/Minimig_USERIO2.rbf output_files/Minimig.rbf)
-QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.2.docker0"
+QUARTUS_IMAGE="${QUARTUS_IMAGE:?QUARTUS_IMAGE env not set — populated by workflow Resolve-Quartus-image step}"
 
 if [[ "${FORCED:-false}" != "true" ]] && \
    [[ "$(git log -n 1 --pretty=format:%an)" == "The CI/CD Bot" ]] && \
