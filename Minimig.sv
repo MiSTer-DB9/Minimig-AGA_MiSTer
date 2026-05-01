@@ -176,8 +176,11 @@ module emu
 assign USER_PP = USER_PP_DRIVE;
 // [MiSTer-DB9 END]
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb wrapper
-wire   [1:0] joy_type        = status[127:126]; // 0=Off, 1=Saturn, 2=DB9MD, 3=DB15
-wire         joy_2p          = status[125];
+// Minimig OSD uses Main_MiSTer custom menu (MENU_MINIMIG_CHIPSET1), not CONF_STR.
+// minimig_set_extcfg(ext_cfg) → UIO_SET_STATUS2 → status[63:32] = ext_cfg.
+// ext_cfg[31:30] (joy mode) → status[63:62]; ext_cfg[29] (2P) → status[61].
+wire   [1:0] joy_type        = status[63:62]; // 0=Off, 1=Saturn, 2=DB9MD, 3=DB15
+wire         joy_2p          = status[61];
 wire         joy_db9md_en    = (joy_type == 2'd2);
 wire         joy_db15_en     = (joy_type == 2'd3);
 wire         joy_any_en      = |joy_type;
@@ -276,10 +279,6 @@ assign HDMI_BOB_DEINT = 0;
 `include "build_id.v" 
 localparam CONF_STR = {
 	"Minimig;UART115200:230400,MIDI;",
-	// [MiSTer-DB9-Pro BEGIN] - Saturn-first UserIO Joystick selector
-	"O[127:126],UserIO Joystick,Off,Saturn,DB9MD,DB15;",
-	"O[125],UserIO Players, 1 Player,2 Players;",
-	// [MiSTer-DB9-Pro END]
 	"J,Red(Fire),Blue,Yellow,Green,RT,LT,Pause;",
 	"jn,A,B,X,Y,R,L,Start;",
 	"jp,B,A,X,Y,R,L,Start;",
@@ -314,9 +313,7 @@ wire [64:0] RTC;
 
 wire        ce_pix;
 wire  [1:0] buttons;
-// [MiSTer-DB9 BEGIN] - widened to 128 bits for joy_type at [127:126] and joy_2p at [125]
-wire [127:0] status;
-// [MiSTer-DB9 END]
+wire [63:0] status;
 wire        forced_scandoubler;
 
 wire        io_strobe;
