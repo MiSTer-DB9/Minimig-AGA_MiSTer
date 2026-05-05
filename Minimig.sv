@@ -176,6 +176,7 @@ module emu
 assign USER_PP = USER_PP_DRIVE;
 // [MiSTer-DB9 END]
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb wrapper
+// [MiSTer-DB9 RESERVED status bits: 63:62 61]
 // Minimig OSD uses Main_MiSTer custom menu (MENU_MINIMIG_CHIPSET1), not CONF_STR.
 // minimig_set_extcfg(ext_cfg) → UIO_SET_STATUS2 → status[63:32] = ext_cfg.
 // ext_cfg[31:30] (joy mode) → status[63:62]; ext_cfg[29] (2P) → status[61].
