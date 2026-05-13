@@ -14,7 +14,7 @@ COMPILATION_INPUT=(Minimig_USERIO2.qpf Minimig.qpf)
 COMPILATION_OUTPUT=(output_files/Minimig_USERIO2.rbf output_files/Minimig.rbf)
 QUARTUS_IMAGE="${QUARTUS_IMAGE:?QUARTUS_IMAGE env not set — populated by workflow Resolve-Quartus-image step}"
 # [MiSTer-DB9 BEGIN] - 1 → exit after merge+push so release_v2.yml builds.
-RELEASE_V2_MODE="0"
+RELEASE_V2_MODE="1"
 # [MiSTer-DB9 END]
 
 # [MiSTer-DB9 BEGIN] - fork-only cores have no upstream; sync_release is a no-op
