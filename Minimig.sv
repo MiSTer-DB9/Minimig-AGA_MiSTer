@@ -14,7 +14,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [48:0] HPS_BUS,
+	inout  [45:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -349,7 +349,7 @@ wire  [7:0] uart_mode;
 hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0)) hps_io
 (
 	.clk_sys(clk_sys),
-	.HPS_BUS({HPS_BUS[48:42],ce_pix,HPS_BUS[40:0]}),
+	.HPS_BUS({HPS_BUS[45:42],ce_pix,HPS_BUS[40:0]}),
 
 	.status(status),
 	// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: add SECOND_MT32 indicator bit to menumask
