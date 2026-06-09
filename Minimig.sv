@@ -295,8 +295,8 @@ always_comb begin
 end
 // [MiSTer-DB9 END]
 
-wire [15:0] JOY0 = joydb_1ena ? (OSD_STATUS ? 16'b0 : joydb_1) : JOY0_USB;
-wire [15:0] JOY1 = joydb_2ena ? (OSD_STATUS ? 16'b0 : joydb_2) : joydb_1ena ? JOY0_USB : JOY1_USB;
+wire [15:0] JOY0 = joydb_1ena ? (OSD_STATUS ? 16'b0 : joydb_1_mapped[15:0]) : JOY0_USB;
+wire [15:0] JOY1 = joydb_2ena ? (OSD_STATUS ? 16'b0 : joydb_2_mapped[15:0]) : joydb_1ena ? JOY0_USB : JOY1_USB;
 wire [15:0] JOY2 = joydb_2ena ? JOY0_USB : joydb_1ena ? JOY1_USB : JOY2_USB;
 wire [15:0] JOY3 = joydb_2ena ? JOY1_USB : joydb_1ena ? JOY2_USB : JOY3_USB;
 // [MiSTer-DB9 END]
