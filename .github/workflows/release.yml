@@ -103,6 +103,7 @@ jobs:
         MAIN_BRANCH: MiSTer
         UPSTREAM_REPO: https://github.com/MiSTer-devel/Minimig-AGA_MiSTer.git
         UPSTREAM_BRANCH: MiSTer
+        UPSTREAM_RELEASES_DIR: releases
         BUILD_SHA: ${{ steps.meta.outputs.build_sha }}
 
   build:
