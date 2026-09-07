@@ -287,8 +287,8 @@ module minimig
 	output        cdtv_cdda_volume_valid,
 
 	//user i/o
-	output  [1:0] cpucfg,
-	output  [3:0] cachecfg,
+	output  [2:0] cpucfg,
+	output  [2:0] cachecfg,
 	output  [6:0] memcfg,
 	output        bootrom,     // enable bootrom magic in gary.v
 	output        ide_ena,
@@ -487,8 +487,7 @@ assign pwr_led = ~_led;
 
 assign memcfg = {memory_config[7],memory_config[5:0]};
 wire force_turbo  = ~ovl;
-assign cachecfg = {cachecfg_pre[3],
-                   cachecfg_pre[2],
+assign cachecfg = {cachecfg_pre[2],
                    force_turbo,
                    force_turbo};
 
@@ -597,7 +596,7 @@ paula PAULA1
 	.floppy_drives(floppy_config[3:2])
 );
 
-wire [3:0] cachecfg_pre;
+wire [2:0] cachecfg_pre;
 //instantiate user IO
 userio USERIO1 
 (	
@@ -694,6 +693,7 @@ ciaa CIAA1
 	.data_out(cia_data_out[7:0]),
 	.tick(_vsync),
 	.eclk(eclk[8]),
+	.cnt_in(1'b1),
 	.irq(int2),
 	.porta_in({_fire1,_fire0,_ready,_track0,_wprot,_change}),
 	.porta_out(porta_out),
@@ -719,6 +719,7 @@ ciab CIAB1
 	.data_out(cia_data_out[15:8]),
 	.tick(_hsync),
 	.eclk(eclk[8]),
+	.cnt_in(1'b1),
 	.irq(int6),
 	.flag(index),
 	.porta_in({cd,cts,dsr,ri&_joy3[4],1'b1,_joy4[4]}),
