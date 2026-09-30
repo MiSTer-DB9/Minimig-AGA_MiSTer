@@ -282,13 +282,15 @@ assign       USER_OUT2 = mt32_on_primary ? 8'hFF : {1'b1, USER_OUT_MT32};
 // [MiSTer-DB9 END]
 
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USER_OUT compose with MT32 anti-contention
-// Priority: MiSTer Floppy (user_port_mode) > DB9 wrapper (joy_any_en) > MT32-pi (mt32_use Gate 2) > idle.
+// Priority: MiSTer Floppy (user_port_mode) > DB9 wrapper (joy_any_en) > MT32-pi (mt32_use Gate 2) > USER_OUT_DRIVE.
 // snac_active = user_port_mode already forces joy_any_en=0 while the floppy owns USER_IO.
+// The default is USER_OUT_DRIVE, not a constant idle, so the OSD-open autodetect
+// probe reaches the pins with UserIO Joystick Off (it is 8'hFF when the probe is idle).
 // MT32 anti-contention: paired with the joy_any_en|mt32_disable Gate 1 below on
 // USER_IN_MT32, the mt32_use AND-gate ensures MT32 only drives the shared USER_IO
 // after the RPi has been detected — preventing boot-window contention with DB9.
 always_comb begin
-	USER_OUT = 8'hFF;
+	USER_OUT = USER_OUT_DRIVE;
 	if (user_port_mode) begin
 		USER_OUT[6:0] = IndirectUserOutFlop;
 	end
