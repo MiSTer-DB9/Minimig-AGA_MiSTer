@@ -212,7 +212,8 @@ wire  [15:0] joy_raw_payload;
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: probe-gating wires
 // SNAC cores: replace 1'b0 with the core's SNAC enable expression so SNAC
 // preempts the joydb wrapper on shared USER_IO pins. Default 1'b0 is no-op.
-wire         snac_active     = 1'b0;
+// MiSTer Floppy (user_port_mode=1) owns USER_IO like a SNAC adapter.
+wire         snac_active     = user_port_mode;
 // MT32-pi probe-suppression gate. Auto-detected from MT32 signals declared
 // elsewhere in this file (mt32_disable / mt32_use / mt32_on_primary). Hand-edit
 // if the heuristic missed your core's gate expression. Suppresses the OSD-open
@@ -281,13 +282,17 @@ assign       USER_OUT2 = mt32_on_primary ? 8'hFF : {1'b1, USER_OUT_MT32};
 // [MiSTer-DB9 END]
 
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USER_OUT compose with MT32 anti-contention
-// Priority: DB9 wrapper (joy_any_en) > MT32-pi (mt32_use Gate 2) > idle.
+// Priority: MiSTer Floppy (user_port_mode) > DB9 wrapper (joy_any_en) > MT32-pi (mt32_use Gate 2) > idle.
+// snac_active = user_port_mode already forces joy_any_en=0 while the floppy owns USER_IO.
 // MT32 anti-contention: paired with the joy_any_en|mt32_disable Gate 1 below on
 // USER_IN_MT32, the mt32_use AND-gate ensures MT32 only drives the shared USER_IO
 // after the RPi has been detected — preventing boot-window contention with DB9.
 always_comb begin
 	USER_OUT = 8'hFF;
-	if (joy_any_en) begin
+	if (user_port_mode) begin
+		USER_OUT[6:0] = IndirectUserOutFlop;
+	end
+	else if (joy_any_en) begin
 		USER_OUT = USER_OUT_DRIVE;
 	end
 `ifdef SECOND_MT32
@@ -369,6 +374,8 @@ wire [21:0] gamma_bus;
 
 wire  [7:0] uart_mode;
 
+reg [2:0] mister_floppy_status;
+
 hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -376,10 +383,11 @@ hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0)) hps_io
 
 	.status(status),
 	// [MiSTer-DB9 BEGIN] - SECOND_MT32 support: add SECOND_MT32 indicator bit to menumask
+	// Indicator sits at bit 9: bits [8:6] carry upstream's MiSTer Floppy status.
 `ifdef SECOND_MT32
-	.status_menumask({1'b1, mt32_cfg, 1'b1}),
+	.status_menumask({1'b1, mister_floppy_status, mt32_cfg, 1'b1}),
 `else
-	.status_menumask({mt32_cfg, 1'b1}), //mt32_available (se deja a 1 para que salgan siempre las opciones mt32 y se pueda activar el disable)
+	.status_menumask({mister_floppy_status, mt32_cfg, 1'b1}), //mt32_available (se deja a 1 para que salgan siempre las opciones mt32 y se pueda activar el disable)
 `endif
 	// [MiSTer-DB9 END]
 	.info_req(mt32_info_req),
@@ -1032,6 +1040,12 @@ wire        ide_ena;
 wire [15:0] toccata_aud_left;
 wire [15:0] toccata_aud_right;
 
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USER_OUT composed in the DB9 always_comb (floppy > DB9 > MT32)
+wire [6:0]  IndirectUserOutFlop;
+wire        user_port_mode;
+// [MiSTer-DB9 END]
+
+
 minimig minimig
 (
 	//m68k pins
@@ -1170,8 +1184,8 @@ minimig minimig
 	.cdtv_cdda_volume_valid(cdtv_cdda_volume_valid),
 
 	//user i/o
+	.cachecfg     (cachecfg         ), // Cache c
 	.cpucfg       (cpucfg           ), // CPU config
-	.cachecfg     (cachecfg         ), // Cache config
 	.memcfg       (memcfg           ), // memory config
 	.bootrom      (bootrom          ), // bootrom mode. Needed here to tell tg68k to also mirror the 256k Kickstart 
 
@@ -1195,7 +1209,12 @@ minimig minimig
 	.a2065_mem_writedata(a2065_mem_writedata),
 	.a2065_mem_byteenable(a2065_mem_byteenable),
 	.a2065_mem_write(a2065_mem_write),
-	.a2065_mem_waitrequest(a2065_mem_waitrequest)
+	.a2065_mem_waitrequest(a2065_mem_waitrequest),
+	
+	.USER_IN      			(USER_IN),
+	.USER_OUT     			(IndirectUserOutFlop),
+	.user_port_mode 		(user_port_mode),
+	.mister_floppy_status	(mister_floppy_status)
 );
 
 // power led control
@@ -1467,7 +1486,8 @@ end
 
 ////////////////////////////  MT32pi  ////////////////////////////////// 
 
-wire        mt32_reset    = status[32] | reset;
+reg   userport_change_reset;
+wire        mt32_reset    = status[32] | reset | userport_change_reset;
 wire        mt32_disable  = status[33];
 wire        mt32_mode_req = status[34];
 wire  [1:0] mt32_rom_req  = status[36:35];
@@ -1511,8 +1531,13 @@ wire  [4:0] mt32_cfg = (mt32_mode == 'hA2) ? {mt32_sf[2:0],  2'b10} :
 
 reg mt32_info_req;
 reg [3:0] mt32_info_disp;
+reg last_userport_mode;
 always @(posedge clk_sys) begin
 	reg old_mode;
+
+	userport_change_reset <= 0;
+	last_userport_mode <= user_port_mode;
+	if (last_userport_mode != user_port_mode) userport_change_reset <= 1;
 
 	old_mode <= mt32_newmode;
 	mt32_info_req <= (old_mode ^ mt32_newmode) && (mt32_info == 1);
