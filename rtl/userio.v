@@ -424,7 +424,7 @@ wire mem_write_sel    = (cmd[3:0] == 0); // A_A_A_A B,B,... || write system memo
 wire reset_ctrl_sel   = (cmd[3:0] == 1); // XXXXHRBC || reset control   | H - CPU halt, R - reset, B - reset to bootloader, C - reset control block
 wire aud_sel          = (cmd[3:0] == 2);
 wire chip_cfg_sel     = (cmd[3:0] == 3); // XXXGEANT || chipset config  | G - AGA, E - ECS, A - OCS A1000, N - NTSC, T - turbo
-wire cpu_cfg_sel      = (cmd[3:0] == 4); // XXXXKCTT || cpu config      | K - fast kickstart enable, C - CPU cache enable, TT - CPU type (00=68k, 01=68k10, 10=68k20)
+wire cpu_cfg_sel      = (cmd[3:0] == 4); // XXPCCCTT || cpu config      | P - stock speed throttle (68020) or no MMU (68030), CCC - cache config, TT - CPU type (00=68000, 01=68010, 10=68030, 11=68020)
 wire memory_cfg_sel   = (cmd[3:0] == 5); // XHFFSSCC || memory config   | H - HRTmon, FF - fast, SS - slow, CC - chip
 wire video_cfg_sel    = (cmd[3:0] == 6); // DDHHLLSS || video config    | DD - dither, HH - hires interp. filter, LL - lowres interp. filter, SS - scanline mode
 wire floppy_cfg_sel   = (cmd[3:0] == 7); // XXXXXFFS || floppy config   | FF - drive number, S - floppy speed
