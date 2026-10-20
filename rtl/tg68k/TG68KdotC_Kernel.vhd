@@ -125,7 +125,6 @@ entity TG68KdotC_Kernel is
 		berr						: in std_logic:='0';					-- only 68000 Stackpointer dummy
 		CPU						: in std_logic_vector(1 downto 0):="00";  -- 00->68000  01->68010  11->68020(only some parts - yet)
 		CPU030					: in std_logic:='0';
-		MMU030					: in std_logic:='1';
 		addr_out					: out std_logic_vector(31 downto 0);
 		data_write				: out std_logic_vector(15 downto 0);
 		nWr						: out std_logic;
@@ -152,7 +151,7 @@ entity TG68KdotC_Kernel is
 		opc_cond				: out std_logic;
 		opc_snd					: out std_logic_vector(15 downto 0);
 		opc_dbx					: out std_logic;
-		opc_cacr				: out std_logic_vector(1 downto 0);
+		opc_cacr				: out std_logic_vector(13 downto 0);
 		mmu_busy				: out std_logic
 		);
 end TG68KdotC_Kernel;
@@ -319,6 +318,7 @@ architecture logic of TG68KdotC_Kernel is
 	signal ae_cnt				: std_logic_vector(4 downto 0);
 	signal rte_cnt				: std_logic_vector(4 downto 0);
 	signal rte_peek			: bit;
+	signal trap_tw			: std_logic;
 	signal trap_format		: bit;
 	
 	signal set_stop			: bit;
@@ -422,7 +422,7 @@ architecture logic of TG68KdotC_Kernel is
 	signal moves_fc		: std_logic;
 	signal moves_fcv		: std_logic_vector(2 downto 0);
 	signal moves_skip		: std_logic;
-	signal state_mmu		: std_logic_vector(1 downto 0);
+	signal state_bus		: std_logic_vector(1 downto 0);
 	signal data_write_i		: std_logic_vector(15 downto 0);
 	signal longword_i		: std_logic;
 	signal mmu_stall		: std_logic;
@@ -433,6 +433,7 @@ architecture logic of TG68KdotC_Kernel is
 	signal addr_p2		: std_logic_vector(31 downto 0);
 	signal mmu_pstate		: std_logic_vector(1 downto 0);
 	signal mmu_cmd_go		: std_logic;
+	signal mmu_cfg_wr		: std_logic;
 	signal mmu_cmd_op		: std_logic_vector(2 downto 0);
 	signal mmu_cmd_fc		: std_logic_vector(2 downto 0);
 	signal mmu_sr_in		: std_logic_vector(15 downto 0);
@@ -552,9 +553,9 @@ ALU: TG68K_ALU
 
 	pmmu: entity work.TG68K_MMU030
 	port map(
-		clk => clk, reset => Reset, k_ena => clkena_lw,
+		clk => clk, reset => Reset, k_ena => clkena_lw, cfg_wr => mmu_cfg_wr,
 		tc => MMU_TC, crp => MMU_CRP, srp => MMU_SRP, tt0 => MMU_TT0, tt1 => MMU_TT1,
-		l_addr => addr, l_state => state_mmu, l_fc => FC_eff, l_rmw => '0',
+		l_addr => addr, l_state => state_bus, l_fc => FC_eff, l_rmw => '0',
 		l_uds => memmaskmux(5), l_lds => memmaskmux(4), l_wr => data_write_i, l_long => longword_i,
 		p_addr => addr_out, p_state => mmu_pstate, p_uds => nUDS, p_lds => nLDS, p_wr => data_write,
 		p_long => longword, p_ci => open, p_ack => clkena_in, p_rd => data_in, stall => mmu_stall,
@@ -584,8 +585,8 @@ ALU: TG68K_ALU
 	                    micro_state=rte_f1 OR micro_state=rte_f2 OR micro_state=rte6 ELSE '0';
 	rp_fromdib <= rp_stick OR (rp_dfault AND NOT rp_df);
 	FC <= FC_eff;
-	FC_eff <= moves_fcv WHEN moves_fc='1' ELSE FC_i;
-	state_mmu <= "01" WHEN pf_bad='1' OR rp_skip='1' OR moves_skip='1' OR ae_halt='1' OR (ae_block='1' AND state="00") ELSE state;
+	FC_eff <= moves_fcv WHEN moves_fc='1' ELSE "101" WHEN micro_state=rte5 OR micro_state=rte6 ELSE FC_i;
+	state_bus <= "01" WHEN pf_bad='1' OR rp_skip='1' OR moves_skip='1' OR ae_halt='1' OR (ae_block='1' AND state="00") ELSE state;
 	moves_op <= '1' WHEN cpu(0)='1' AND opcode(15 downto 8)="00001110" AND opcode(7 downto 6)/="11" AND trapmake='0' ELSE '0';
 	-- AMR - let the parent module know this is a longword access.  (Easy way to enable burst writes.)
 	longword_i <= not memmaskmux(3);
@@ -612,7 +613,7 @@ ALU: TG68K_ALU
 	-- does shift for byte access. note active low me
 	-- should produce address error on 68000
 	memmaskmux <= memmask when addr(0) = '1' else memmask(4 downto 0) & '1';
-	cand <= '1' WHEN s21_en='1' AND mm_plain='1' AND memmask="100001" AND addr(1 downto 0)="00" AND state(1)='1' AND MMU_TC(31)='0' ELSE '0';
+	cand <= '1' WHEN s21_en='1' AND mm_plain='1' AND memmask="100001" AND addr(1 downto 0)="00" AND state(1)='1' AND (MMU_TC(31)='0' OR (exc_seq='0' AND rp_act='0')) ELSE '0';
 	long_cand <= cand AND NOT mmu_stall;
 	l1 <= long_ack AND cand;
 	addr_p2 <= addr + 2;
@@ -1030,6 +1031,8 @@ PROCESS (clk)
 						data_write_tmp(15 downto 0) <= "0010" & trap_vector(11 downto 0); --TH
 					ELSIF trap_ae='1' THEN
 						data_write_tmp(15 downto 0) <= "1011" & trap_vector(11 downto 0);
+					ELSIF trap_tw='1' THEN
+						data_write_tmp(15 downto 0) <= "0001" & trap_vector(11 downto 0);
 					else
 						data_write_tmp(15 downto 0) <= "0000" & trap_vector(11 downto 0);
 						writePCnext <= trap_trap OR trap_trapv OR exec(trap_chk) OR Z_error OR trap_mmucfg;
@@ -1060,6 +1063,9 @@ PROCESS (clk)
 					data_write_tmp <= last_data_read;
 				ELSIF writeSR='1'THEN
 					data_write_tmp(15 downto 0) <= trap_SR(7 downto 0)& Flags(7 downto 0);
+					IF trap_tw='1' THEN
+						data_write_tmp(13) <= '1';
+					END IF;
 				ELSE	
 					data_write_tmp <= OP2out;
 				END IF;
@@ -1457,7 +1463,7 @@ PROCESS (clk, IPL, setstate, addrvalue, state, exec_write_back, set_direct_data,
 							trap_interrupt <= '1';
 						END IF;
 					END IF;	
-					IF micro_state=trap0 AND IPL_autovector='0' THEN 			
+					IF micro_state=trap0 AND IPL_autovector='0' AND trap_tw='0' THEN
 						IPL_vec <= last_data_read(7 downto 0);    --	TH
 					END IF;	
 					IF state="00" THEN				
@@ -1788,6 +1794,9 @@ PROCESS (clk, Reset, FlagsSR, last_data_read, OP2out, exec)
 					FlagsSR(7) <= '0';
 					FlagsSR(6) <= '0';
 				END IF;
+				IF micro_state=trap7 THEN
+					FlagsSR(4) <= '0';
+				END IF;
 				IF trap_trace='1' AND state="10" THEN
 					make_trace <= '0';
 				END IF;
@@ -1827,7 +1836,7 @@ PROCESS (clk, cpu, OP1out, OP2out, opcode, exe_condition, nextpass, micro_state,
 		 SVmode, preSVmode, stop, long_done, ea_only, setstate, addrvalue, execOPC, exec_write_back, exe_datatype,
 		 datatype, interrupt, c_out, trapmake, rot_cnt, brief, addr, trap_trapv, last_data_in, use_VBR_Stackframe,
 		 long_start, set_datatype, sndOPC, set_exec, exec, ea_build_now, reg_QA, reg_QB, make_berr, trap_berr,
-		 CPU030, MMU030, pmmu_ext, pmmu_ok, pmmu_ea, pmmu_bad, pmmu_cfg, preMmode, trap_ae, ae_cnt, rte_cnt, undo_v)
+		 CPU030, pmmu_ext, pmmu_ok, pmmu_ea, pmmu_bad, pmmu_cfg, preMmode, trap_ae, ae_cnt, rte_cnt, undo_v)
 	BEGIN
 		TG68_PC_brw <= '0';	
 		setstate <= "00";
@@ -3552,7 +3561,7 @@ PROCESS (clk, cpu, OP1out, OP2out, opcode, exe_condition, nextpass, micro_state,
 --				
 ---- 1111 ----------------------------------------------------------------------------		
 			WHEN "1111" =>
-				IF CPU030='1' AND MMU030='1' AND opcode(11 downto 9)="000" THEN
+				IF CPU030='1' AND opcode(11 downto 9)="000" THEN
 					IF SVmode='0' THEN
 						trap_priv <= '1';
 						trapmake <= '1';
@@ -3732,9 +3741,15 @@ PROCESS (clk, cpu, OP1out, OP2out, opcode, exe_condition, nextpass, micro_state,
 		IF rising_edge(clk) THEN
 	        IF Reset='1' THEN
 				micro_state <= ld_nn;
+				trap_tw <= '0';
 			ELSIF clkena_lw='1' THEN
 				trapd <= trapmake;
 				micro_state <= next_micro_state;
+				IF micro_state=trap7 THEN
+					trap_tw <= '1';
+				ELSIF micro_state=trap3 THEN
+					trap_tw <= '0';
+				END IF;
 				IF (interrupt='1' AND trap_ae='1') OR micro_state=berr2 THEN
 					ae_cnt <= "10101";
 				ELSIF micro_state=trapB THEN
@@ -4274,6 +4289,8 @@ PROCESS (clk, cpu, OP1out, OP2out, opcode, exe_condition, nextpass, micro_state,
 					writeSR <= '1';
 					IF trap_berr='1' THEN
 						next_micro_state <= trap4;
+					ELSIF trap_interrupt='1' AND FlagsSR(4)='1' THEN
+						next_micro_state <= trap7;
 					ELSE
 						next_micro_state <= trap3;
 					END IF;
@@ -4335,6 +4352,11 @@ PROCESS (clk, cpu, OP1out, OP2out, opcode, exe_condition, nextpass, micro_state,
 						set(changeMode) <= '1';
 					END IF;
 					next_micro_state <= trapB;
+				WHEN trap7 =>
+					set(changeMstk) <= '1';
+					setstackaddr <= '1';
+					setstate <= "01";
+					next_micro_state <= trap0;
 				WHEN rte_f1 =>
 					setstate <= "01";
 					next_micro_state <= rte_f2;
@@ -4416,12 +4438,27 @@ PROCESS (clk, cpu, OP1out, OP2out, opcode, exe_condition, nextpass, micro_state,
 						set(postadd) <= '1';
 						setstackaddr <= '1';
 						next_micro_state <= rte6;
+					elsif cpu(1)='1' AND last_data_in(15 downto 12)="0001" then
+						next_micro_state <= rte7;
 					else
 						datatype <= "01";
 						next_micro_state <= nop;
 					end if;
 				WHEN rte5 =>            -- RTE
 					next_micro_state <= nop;
+				WHEN rte7 =>
+					IF FlagsSR(4)/=preMmode THEN
+						set(changeMstk) <= '1';
+						setstackaddr <= '1';
+					END IF;
+					setstate <= "01";
+					next_micro_state <= rte8;
+				WHEN rte8 =>
+					setstate <= "10";
+					datatype <= "01";
+					setstackaddr <= '1';
+					rte_peek <= '1';
+					next_micro_state <= rte_f1;
 -------------------------------------
 
 				WHEN rtd1 =>		-- RTD
@@ -4804,22 +4841,22 @@ PROCESS (clk)
 					END CASE;
 				END IF;
 				CASE pmmu_ext(14 downto 10) IS
-					WHEN "00010" => pmmu_q <= MMU_TT0;
-					WHEN "00011" => pmmu_q <= MMU_TT1;
+					WHEN "00010" => pmmu_q <= MMU_TT0 AND X"FFFF8777";
+					WHEN "00011" => pmmu_q <= MMU_TT1 AND X"FFFF8777";
 					WHEN "10000" => pmmu_q <= MMU_TC AND X"83FFFFFF";
 					WHEN "10010" =>
 						IF movem_regaddr(0)='0' THEN
-							pmmu_q <= MMU_SRP(63 downto 32);
+							pmmu_q <= MMU_SRP(63 downto 32) AND X"FFFF0003";
 						ELSE
 							pmmu_q <= MMU_SRP(31 downto 4) & "0000";
 						END IF;
 					WHEN "10011" =>
 						IF movem_regaddr(0)='0' THEN
-							pmmu_q <= MMU_CRP(63 downto 32);
+							pmmu_q <= MMU_CRP(63 downto 32) AND X"FFFF0003";
 						ELSE
 							pmmu_q <= MMU_CRP(31 downto 4) & "0000";
 						END IF;
-					WHEN OTHERS => pmmu_q <= X"0000" & MMU_SR;
+					WHEN OTHERS => pmmu_q <= X"0000" & (MMU_SR AND X"EE47");
 				END CASE;
 			END IF;
 			IF mmu_sr_we='1' THEN
@@ -4836,11 +4873,12 @@ PROCESS (clk)
   opc_cond  <= exe_condition;
   opc_snd   <= sndOPC;
   opc_dbx   <= '1' when micro_state = dbcc1 and exe_condition = '0' and c_out(1) = '0' else '0';
-  opc_cacr  <= CACR(1 downto 0);
-  pmmu_ins <= '1' WHEN CPU030='1' AND MMU030='1' AND opcode(15 downto 6)="1111000000" ELSE '0';
+  opc_cacr  <= CACR;
+  pmmu_ins <= '1' WHEN CPU030='1' AND opcode(15 downto 6)="1111000000" ELSE '0';
   pmmu_flush <= '1' WHEN state="10" AND exec(movem_action)='1' AND opcode(15)='1' AND pmmu_ext(8)='0' AND movem_run='0' AND
                 (pmmu_ext(14 downto 10)="00010" OR pmmu_ext(14 downto 10)="00011" OR pmmu_ext(14 downto 10)="10000" OR
                  pmmu_ext(14 downto 10)="10010" OR pmmu_ext(14 downto 10)="10011") ELSE '0';
+  mmu_cfg_wr <= '1' WHEN state="10" AND exec(movem_action)='1' AND opcode(15)='1' ELSE '0';
   mmu_cmd_go <= '1' WHEN pmmu_flush='1' OR
                 (exec(get_ea_now)='1' AND pmmu_ins='1' AND (pmmu_ext(15 downto 13)="100" OR
                  (pmmu_ext(15 downto 13)="001" AND (pmmu_ext(12 downto 10)="000" OR pmmu_ext(12 downto 10)="110")))) OR
@@ -4952,6 +4990,19 @@ PROCESS (clk)
 					END IF;
 					IF state(0)='0' AND rp_cnt<18 THEN
 						rp_log(conv_integer(rp_cnt)) <= data_in_i;
+					END IF;
+					IF l1='1' THEN
+						IF rp_cnt<"111110" THEN
+							rp_cnt <= rp_cnt+2;
+						ELSE
+							rp_cnt <= "111111";
+						END IF;
+						IF state(0)='0' AND rp_cnt<18 THEN
+							rp_log(conv_integer(rp_cnt)) <= data_in_hi;
+						END IF;
+						IF state(0)='0' AND rp_cnt<17 THEN
+							rp_log(conv_integer(rp_cnt)+1) <= data_in_i;
+						END IF;
 					END IF;
 					IF micro_state=rte6 AND state(0)='0' THEN
 						CASE rp_cnt IS

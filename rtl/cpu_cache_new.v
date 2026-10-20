@@ -48,12 +48,10 @@ module cpu_cache_new
   input             snoop_act,      // snoop act (write only - just update existing data in cache)
   input      [28:1] snoop_adr,      // chip address                      
   input      [15:0] snoop_dat_w,    // snoop write data
-  input       [1:0] snoop_bs
-  ,
+  input       [1:0] snoop_bs,
   input             buf_ok,
   input      [63:0] buf_dat,
-  output reg        buf_take
-  ,
+  output reg        buf_take,
   input             cpu_long,
   input      [15:0] cpu_dat_w_lo,
   output reg [15:0] cpu_dat_hi,
@@ -119,6 +117,7 @@ wire        long_rd = LINE_TAKE && cpu_long && !cpu_ir;
 reg         cpu_sm_long;
 reg  [15:0] cpu_sm_mem_dat_lo;
 reg         cpu_sm_w2;
+reg         cpu_sm_gap;
 reg         cpu_sm_i0l, cpu_sm_i1l;
 reg   [9:0] sdr_sm_adr;
 reg         sdr_sm_itag_we;
@@ -299,6 +298,7 @@ wire [15:0] rd_dat    = rd_i0 ? idram0_cpu_dat_r :
                         rd_d0 ? (long_rd ? ddram0_cpu_dat_lo : ddram0_cpu_dat_r) :
                         rd_d1 ? (long_rd ? ddram1_cpu_dat_lo : ddram1_cpu_dat_r) :
                                 (long_rd ? buf_word_lo : buf_word);
+wire        wr_i2     = LINE_TAKE && cpu_long && ((itag0_match && itag0_valid) || (itag1_match && itag1_valid));
 wire [15:0] rd_dat_hi = rd_d0 ? ddram0_cpu_dat_r : rd_d1 ? ddram1_cpu_dat_r : buf_word;
 wire  [3:0] rd_tw_op  = rd_i0 ? TW_I0 : rd_i1 ? TW_I1 : rd_d0 ? TW_D0 : rd_d1 ? TW_D1 : dtag_lru ? TW_DF0 : TW_DF1;
 
@@ -380,23 +380,24 @@ always @ (posedge clk) begin
         cpu_sm_mem_dat_lo <= cpu_dat_w_lo;
         cpu_sm_i0l        <= itag0_match && itag0_valid;
         cpu_sm_i1l        <= itag1_match && itag1_valid;
-        cpu_sm_w2         <= LINE_TAKE && cpu_long && ((itag0_match && itag0_valid) || (itag1_match && itag1_valid));
+        cpu_sm_w2         <= wr_i2;
+        cpu_sm_gap        <= !cpu_cs;
         cpu_sm_state <= CPU_SM_WB;
-        wb_en <= 1'b1;
-        if (!cpu_cs && !(LINE_TAKE && cpu_long && ((itag0_match && itag0_valid) || (itag1_match && itag1_valid))))
-          cpu_sm_state <= CPU_SM_IDLE;
+        wb_en <= cpu_cs || !wr_i2;
+        if (!cpu_cs && !wr_i2) cpu_sm_state <= CPU_SM_IDLE;
       end
       CPU_SM_WB : begin
         if (cpu_sm_w2) begin
           cpu_sm_w2        <= 1'b0;
+          cpu_sm_gap       <= cpu_sm_gap || !cpu_cs;
           cpu_sm_adr       <= {cpu_sm_adr[9:1], 1'b1};
           cpu_sm_mem_dat_w <= cpu_sm_mem_dat_lo;
           cpu_sm_bs        <= 2'b11;
           cpu_sm_iram0_we  <= cpu_sm_i0l;
           cpu_sm_iram1_we  <= cpu_sm_i1l;
-          if (cpu_cs) wb_en <= 1'b1;
+          if (cpu_cs && !cpu_sm_gap) wb_en <= 1'b1;
         end else
-        if (!cpu_cs) cpu_sm_state <= CPU_SM_IDLE;
+        if (!cpu_cs || cpu_sm_gap) cpu_sm_state <= CPU_SM_IDLE;
         else wb_en <= 1'b1;
       end
       CPU_SM_READ : begin

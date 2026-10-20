@@ -33,12 +33,11 @@ module cpu_wrapper
 	input             ph1,
 	input             ph2,
 
-	input       [2:0] cpucfg,
+	input       [4:0] cpucfg,
+	input             ntsc,
 	input       [2:0] fastramcfg,
 	input       [2:0] cachecfg,
 	input             bootrom,
-	input             sdram_big,
-	input             sdram_dual,
 
 	output reg [23:1] chip_addr,
 	input      [15:0] chip_dout,
@@ -93,12 +92,6 @@ module cpu_wrapper
 	output reg        z3ram_ena0,
 	output reg  [3:0] z3ram_base1,
 	output reg        z3ram_ena1,
-	output reg  [7:0] z3sdr_base0,
-	output reg        z3sdr_ena0,
-	output reg  [7:0] z3sdr_base1,
-	output reg        z3sdr_ena1,
-	output reg  [7:0] z3sdr_base2,
-	output reg        z3sdr_ena2,
 
 	output            ramlong1,
 	output     [15:0] ramdin_lo,
@@ -118,6 +111,8 @@ assign ramshared    = sel_dd;
 
 // NMI
 always @(posedge clk) nmi_addr <= vbr + 32'h7c;
+reg [31:0] nmi_addr2;
+always @(posedge clk) nmi_addr2 <= vbr + 32'h7e;
 
 wire sel_chipram;
 wire sel_kickram;
@@ -138,13 +133,6 @@ memory_router u_memory_router
 	.z3ram_ena0    (z3ram_ena0    ),
 	.z3ram_base1   (z3ram_base1   ),
 	.z3ram_ena1    (z3ram_ena1    ),
-	.z3sdr_base0   (z3sdr_base0   ),
-	.z3sdr_ena0    (z3sdr_ena0    ),
-	.z3sdr_base1   (z3sdr_base1   ),
-	.z3sdr_ena1    (z3sdr_ena1    ),
-	.z3sdr_base2   (z3sdr_base2   ),
-	.z3sdr_ena2    (z3sdr_ena2    ),
-	.sdram_big     (sdram_big     ),
 	.sel_chipram   (sel_chipram   ),
 	.sel_kickram   (sel_kickram   ),
 	.sel_zram      (sel_zram      ),
@@ -156,7 +144,7 @@ memory_router u_memory_router
 
 // we route everything hrtmon related through cart.v (needs a couple of signals to
 // decide what to do, would not be good style to replicate that here).
-wire sel_nmi_vector = (cpu_addr[31:2] == nmi_addr[31:2]) && (cpustate == 2);
+wire sel_nmi_vector = ((cpu_addr[31:1] == nmi_addr[31:1]) || (cpu_addr[31:1] == nmi_addr2[31:1])) && (cpustate == 2);
 
 wire [15:0] ramdat;
 
@@ -244,7 +232,7 @@ wire [15:0] opc_out;
 wire        opc_cond;
 wire [15:0] opc_snd;
 wire        opc_dbx;
-wire  [1:0] cacr_x;
+wire [13:0] cacr_x;
 wire        mmu_busy;
 wire        s21_en;
 wire        long_cand;
@@ -284,7 +272,6 @@ cpu_inst_p
   
   .cpu({cpucfg[1], cpucfg[1] | cpucfg[0]}),
   .cpu030(cpu030),
-  .mmu030(~cpucfg[2]),
   .opc_start(opc_start),
   .opc_out(opc_out),
   .opc_cond(opc_cond),
@@ -367,7 +354,8 @@ cpu_cycles cycles
 (
 	.clk(clk),
 	.reset(reset),
-	.ena(stock_speed),
+	.ntsc(ntsc),
+	.mode({cpu030 & |cpucfg[4:3], stock_speed | (cpu030 & cpucfg[4])}),
 	.opc_start(opc_start),
 	.opc(opc_out),
 	.opc_cond(opc_cond),
@@ -525,7 +513,6 @@ reg       ac_toccata;
 reg       ac_a2065;
 reg       ac_cdtv;
 reg [2:0] ac_memcard;
-reg       ac_z3sdr0, ac_z3sdr1, ac_z3sdr2;
 reg [3:0] autocfg_data;
 
 
@@ -627,26 +614,9 @@ always @(*) begin
 			  default:;
 		endcase
 	end
-	else if(ac_z3sdr1 | ac_z3sdr0 | ac_z3sdr2) begin
-		case (chip_addr[6:1])
-			6'b000000: autocfg_data = 4'b1010;	// Zorro-III card, add mem, no ROM
-			6'b000001: autocfg_data = ac_z3sdr1 ? 4'b0010 :
-			                          ac_z3sdr0 ? (sdram_big ? 4'b0001 : 4'b0000) :
-			                                      4'b0000;
-			6'b000010: autocfg_data = 4'b1110;	// ProductID=0x10 (only setting upper nibble)
-			6'b000100: autocfg_data = (ac_z3sdr1 | ac_z3sdr0) ? 4'b0000 : 4'b0010;
-			6'b000101: autocfg_data = (ac_z3sdr1 | ac_z3sdr0) ? 4'b1111 : 4'b0101;
-			6'b001000: autocfg_data = 4'b1110;	// Manufacturer ID: 0x139c
-			6'b001001: autocfg_data = 4'b1100;
-			6'b001010: autocfg_data = 4'b0110;
-			6'b001011: autocfg_data = 4'b0011;
-			6'b010011: autocfg_data = ac_z3sdr1 ? 4'b1100 : ac_z3sdr0 ? 4'b1011 : 4'b1010;
-			  default:;
-		endcase
-	end
 end
 
-wire sel_autoconfig = (chip_addr[23:16] == 8'b11101000) && (ac_memcard || ac_z3sdr0 || ac_z3sdr1 || ac_z3sdr2 || ac_toccata || ac_a2065 || ac_cdtv); //$E80000 - $E8FFFF
+wire sel_autoconfig = (chip_addr[23:16] == 8'b11101000) && (ac_memcard || ac_toccata || ac_a2065 || ac_cdtv); //$E80000 - $E8FFFF
 
 always @(posedge clk) begin
 	reg old_uds;
@@ -654,15 +624,6 @@ always @(posedge clk) begin
 
 	if (~reset | ~reset_out) begin
 		ac_memcard  <= (cpucfg[1] & ~ec020) ? fastramcfg : fastramcfg[2] ? 3'd3 : {1'b0, fastramcfg[1:0]};
-		ac_z3sdr0   <= 0;
-		ac_z3sdr1   <= 0;
-		ac_z3sdr2   <= 0;
-		z3sdr_ena0  <= 0;
-		z3sdr_ena1  <= 0;
-		z3sdr_ena2  <= 0;
-		z3sdr_base0 <= 0;
-		z3sdr_base1 <= 0;
-		z3sdr_base2 <= 0;
 		ac_toccata  <= cdtv_mode ? 1'b0 : 1'b1;
 		ac_a2065    <= 1;
 		ac_cdtv     <= cdtv_mode;
@@ -712,25 +673,6 @@ always @(posedge clk) begin
 					z3ram_base0 <= cpu_dout[15:11]; //128MB chunk
 					z3ram_ena0 <= 1;
 					ac_memcard <= 0;
-				end
-			end
-		end
-		else if(ac_z3sdr1 | ac_z3sdr0 | ac_z3sdr2) begin
-			if(chip_addr[6:1] == 6'b100010) begin
-				if(ac_z3sdr1) begin
-					z3sdr_base1 <= cpu_dout[15:8];
-					z3sdr_ena1  <= 1;
-					ac_z3sdr1   <= 0;
-				end
-				else if(ac_z3sdr0) begin
-					z3sdr_base0 <= cpu_dout[15:8];
-					z3sdr_ena0  <= 1;
-					ac_z3sdr0   <= 0;
-				end
-				else begin
-					z3sdr_base2 <= cpu_dout[15:8];
-					z3sdr_ena2  <= 1;
-					ac_z3sdr2   <= 0;
 				end
 			end
 		end

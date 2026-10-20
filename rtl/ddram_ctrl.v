@@ -78,25 +78,8 @@ module ddram_ctrl
 	input             dmaU,
 	input      [15:0] dmaWR,
 	output reg [15:0] dmaRD,
-	output            dmaACK,
-
-	input             sdr_hi,
-	output reg        sdr_req,
-	output reg        sdr_we,
-	output reg [26:1] sdr_addr,
-	output reg  [1:0] sdr_dqm,
-	output reg [15:0] sdr_wdat,
-	output reg        sdr_w2,
-	output reg  [1:0] sdr_dqm2,
-	output reg [15:0] sdr_wdat2,
-	input             sdr_ack,
-	input             sdr_rvalid,
-	input      [15:0] sdr_rdat
+	output            dmaACK
 );
-
-function is_sdr(input [28:1] a, input hi);
-	is_sdr = ((a[28:26] == 3'b001) && (a[25:24] != 2'b11)) || (hi && (a[28:26] == 3'b011));
-endfunction
 
 wire ramsel = cpuCS & (~&cpustate | ~cpuU | ~cpuL);
 
@@ -141,12 +124,10 @@ cpu_cache
 	.snoop_act        (dma_snoop_act),
 	.snoop_adr        (dma_snoop_adr),
 	.snoop_dat_w      (dma_snoop_dat),
-	.snoop_bs         (dma_snoop_bs)
-	,
+	.snoop_bs         (dma_snoop_bs),
 	.buf_ok           (kept_ok),
 	.buf_dat          (kept_dat),
-	.buf_take         (kept_take)
-	,
+	.buf_take         (kept_take),
 	.cpu_long         (cpuLong1 & ~ramshared),
 	.cpu_dat_w_lo     (cpuWR_lo),
 	.cpu_dat_hi       (cpuRD_hi),
@@ -291,7 +272,6 @@ wire dmaCS_rise = dmaCS_sync2 & ~dmaCS_sync3;
 reg        dma_write_req;
 reg        dma_write_ack;
 reg [28:1] dmaWriteAddr;
-reg        dmaWriteSdr;
 reg [15:0] dmaWriteDat;
 reg  [1:0] dmaWriteBE;
 reg        dmaACK_r;
@@ -299,7 +279,6 @@ reg        dmaACK_r;
 reg        dma_read_req;
 reg        dma_read_ack;
 reg [28:1] dmaReadAddr;
-reg        dmaReadSdr;
 reg  [1:0] dmaReadBA;
 reg        dma_read_in_flight;
 reg        dma_after_wr;
@@ -323,7 +302,6 @@ always @ (posedge sysclk) begin
 			dma_after_wr <= wq_any;
 			if (dmaWE) begin
 			dmaWriteAddr  <= dmaAddr;
-			dmaWriteSdr   <= is_sdr(dmaAddr, sdr_hi);
 			dmaWriteDat   <= dmaWR;
 			dmaWriteBE    <= ~{dmaU, dmaL};
 			dma_write_req <= 1'b1;
@@ -333,7 +311,6 @@ always @ (posedge sysclk) begin
 			dma_snoop_bs  <= ~{dmaU, dmaL};
 			end else begin
 				dmaReadAddr  <= dmaAddr;
-				dmaReadSdr   <= is_sdr(dmaAddr, sdr_hi);
 				dma_read_req <= 1'b1;
 			end
 		end
@@ -458,19 +435,12 @@ reg [15:0] ddr_data;
 reg  [2:0] state = 0;
 reg  [1:0] ba;
 reg [63:0] dout;
-reg  [1:0] sdr_cnt;
 
 reg        wq_line_r;
-reg        sb_on_cpu, sp_on_cpu;
-reg        cpu_sdr;
+reg        sb_on_cpu;
 reg [28:3] cpu_up, cpu_dn;
 reg        cpu_below_sb;
-reg        cpu_after_sp, cpu_before_sp;
 reg [28:3] cpu_up2, cpu_dn2;
-reg [28:3] sp_nx_r;
-reg        sp_n_sdr;
-reg        sp_conf_r;
-reg        cpu_wr_spn;
 
 reg        sb_v;
 reg [28:3] sb_a;
@@ -492,11 +462,10 @@ assign     kept_ok  = sb_v && (sb_a == cpuAddr[28:3]) && ~ramshared && ~wq_line 
 reg        strm_on;
 reg [28:3] nx_a;
 reg [28:3] nx_a1;
-wire [28:3] nx_a_nx  ;
-wire [28:3] nx_a1_nx  ;
+wire [28:3] nx_a_nx;
+wire [28:3] nx_a1_nx;
 assign     nx_a_nx  = sb_up ? nx_a + 1'd1 : nx_a - 1'd1;
 assign     nx_a1_nx = sb_up ? nx_a1 + 1'd1 : nx_a1 - 1'd1;
-wire       nx_sdr  = is_sdr({nx_a, 2'b00}, sdr_hi);
 wire       m2_req  = q2_v;
 function in_buf(input [28:3] a);
 	in_buf = ((sb_v | sb_wait) && (sb_a == a)) || ((sc_v | sc_wait) && (sc_a == a));
@@ -508,28 +477,9 @@ wire       dr_sel  = st0 & ~dw_sel & ~dma_read_ack & dma_read_req & ~dma_read_in
 wire       next_sel = st0 & ~dw_sel & ~dr_sel & ~cache_req & strm_on & ~sc_wait & ~sc_v & ~m2_req;
 wire       rd_1st  = cache_req & ~wq_line_r;
 wire       rd_sel0 = st0 & ~dw_sel & ~dr_sel & rd_1st;
-reg        sp_v;
-reg [28:3] sp_a;
-reg [63:0] sp_d;
-reg        sp_go;
-reg [28:3] sp_n;
-reg        sp_on;
-reg        sp_kill;
-reg [28:3] sp_last;
-wire       sp_hit  = sp_v && sp_on_cpu && ~ramshared && ~wq_line_r;
-reg        sp_conf;
-integer    qk;
-always @* begin
-	sp_conf = stg_v && (stg_a[28:3] == sp_n);
-	for (qk = 0; qk < WQN; qk = qk + 1)
-		if (wq_vm[qk] && (wq_a[qk][28:3] == sp_n)) sp_conf = 1'b1;
-end
-wire       sp_cpu_wr = ramsel && (cpustate == 3) && (cpuAddr[28:3] == sp_a);
-wire       pf_sel  = st0 & ~dw_sel & ~dr_sel & ~rd_sel0 & sp_go & ~sp_conf_r & ~cache_req & ~next_sel & ~cpu_wr_spn;
-wire       wq_sel  = st0 & ~dw_sel & ~dr_sel & ~rd_sel0 & ~next_sel & ~pf_sel & (wq_n != 0);
+wire       wq_sel  = st0 & ~dw_sel & ~dr_sel & ~rd_sel0 & ~next_sel & (wq_n != 0);
 wire       rd_sel  = rd_sel0;
-wire       wh_sdr  = is_sdr({wh_a, 1'b0}, sdr_hi);
-assign     wq_pop  = wq_sel & (wh_sdr | ~ram_busy);
+assign     wq_pop  = wq_sel & ~ram_busy;
 wire [28:3] ra_cpu  = (~ramshared && cpu_below_sb) ? cpu_dn : cpuAddr[28:3];
 wire [28:3] ra_next = wq_sel ? wh_a[28:3] : dw_sel ? dmaWriteAddr[28:3] : dr_sel ? dmaReadAddr[28:3] :
                       (rd_sel & ~sb_hit) ? ra_cpu : nx_a;
@@ -537,19 +487,11 @@ wire [28:3] ra_next = wq_sel ? wh_a[28:3] : dw_sel ? dmaWriteAddr[28:3] : dr_sel
 always @(posedge sysclk) begin
 	wq_line_r     <= wq_line;
 	sb_on_cpu     <= (sb_a == cpuAddr[28:3]);
-	sp_on_cpu     <= (sp_a == cpuAddr[28:3]);
-	cpu_sdr       <= is_sdr(cpuAddr, sdr_hi);
 	cpu_up        <= cpuAddr[28:3] + 1'd1;
 	cpu_dn        <= cpuAddr[28:3] - 1'd1;
 	cpu_below_sb  <= (cpuAddr[28:3] == sb_last - 1'd1);
-	cpu_after_sp  <= (cpuAddr[28:3] == sp_last + 1'd1);
-	cpu_before_sp <= (cpuAddr[28:3] == sp_last - 1'd1);
 	cpu_up2       <= cpuAddr[28:3] + 2'd2;
 	cpu_dn2       <= cpuAddr[28:3] - 2'd2;
-	sp_nx_r       <= (sp_a == sp_last - 1'd1) ? sp_a - 1'd1 : sp_a + 1'd1;
-	sp_n_sdr      <= is_sdr({sp_n, 2'b00}, sdr_hi);
-	sp_conf_r     <= sp_conf;
-	cpu_wr_spn    <= ramsel && (cpustate == 3) && (cpuAddr[28:3] == sp_n);
 end
 
 always @ (posedge sysclk) begin
@@ -586,8 +528,6 @@ always @ (posedge sysclk) begin
 		dma_write_ack <= 0;
 		dma_read_ack       <= 0;
 		dma_read_in_flight <= 0;
-		sdr_req       <= 0;
-		sdr_w2        <= 0;
 		ram_bcnt      <= 8'd1;
 		sb_v          <= 0;
 		sb_wait       <= 0;
@@ -598,11 +538,6 @@ always @ (posedge sysclk) begin
 		sb_up         <= 1;
 		sb_last       <= 0;
 		dn_first      <= 0;
-		sp_v          <= 0;
-		sp_go         <= 0;
-		sp_on         <= 0;
-		sp_kill       <= 0;
-		sp_last       <= 0;
 		strm_on       <= 0;
 	end
 	else begin
@@ -610,25 +545,10 @@ always @ (posedge sysclk) begin
 			sb_last <= sb_a;
 			if(sb_v) strm_on <= 1;
 		end
-		if(sp_cpu_wr) begin
-			sp_v <= 0;
-			if(sp_on) sp_kill <= 1;
-		end
 		case(state)
 			0: begin
 					if(dw_sel) begin
-						if(dmaWriteSdr) begin
-							sdr_req       <= 1;
-							sdr_we        <= 1;
-							sdr_w2        <= 0;
-							sdr_addr      <= {dmaWriteAddr[27], dmaWriteAddr[25:1]};
-							sdr_dqm       <= ~dmaWriteBE;
-							sdr_wdat      <= dmaWriteDat;
-							dma_write_ack <= 1;
-							if(sp_a == dmaWriteAddr[28:3]) sp_v <= 0;
-							state         <= 5;
-						end
-						else if(~ram_busy) begin
+						if(~ram_busy) begin
 							ram_be        <= {6'b000000,dmaWriteBE}<<{dmaWriteAddr[2:1],1'b0};
 							ram_din       <= {dmaWriteDat,dmaWriteDat,dmaWriteDat,dmaWriteDat};
 							ram_bcnt      <= 8'd1;
@@ -638,15 +558,7 @@ always @ (posedge sysclk) begin
 						end
 					end
 					if(dr_sel) begin
-						if(dmaReadSdr) begin
-							sdr_req            <= 1;
-							sdr_we             <= 0;
-							sdr_addr           <= {dmaReadAddr[27], dmaReadAddr[25:1]};
-							sdr_cnt            <= 0;
-							dma_read_in_flight <= 1;
-							state              <= 5;
-						end
-						else if(~ram_busy & ~sb_wait & ~sc_wait) begin
+						if(~ram_busy & ~sb_wait & ~sc_wait) begin
 							ram_be             <= 8'hFF;
 							ram_bcnt           <= 8'd1;
 							ram_rd             <= 1;
@@ -657,44 +569,14 @@ always @ (posedge sysclk) begin
 					end
 					if(next_sel) begin
 						if(~ram_busy) begin
-							if(~nx_sdr) begin
-								ram_be   <= 8'hFF;
-								ram_bcnt <= 8'd1;
-								ram_rd   <= 1;
-								e_issue   = 1;
-							end
-							else strm_on <= 0;
+							ram_be   <= 8'hFF;
+							ram_bcnt <= 8'd1;
+							ram_rd   <= 1;
+							e_issue   = 1;
 						end
-					end
-					if(pf_sel) begin
-						if(sp_n_sdr) begin
-							sdr_req  <= 1;
-							sdr_we   <= 0;
-							sdr_w2   <= 0;
-							sdr_addr <= {sp_n[27], sp_n[25:3], 2'b00};
-							sdr_cnt  <= 0;
-							sp_on    <= 1;
-							sp_kill  <= 0;
-							sp_a     <= sp_n;
-							sp_v     <= 0;
-							state    <= 5;
-						end
-						sp_go <= 0;
 					end
 					if(wq_sel) begin
-						if(wh_sdr) begin
-							sdr_req   <= 1;
-							sdr_we    <= 1;
-							sdr_w2    <= |wh_bh & |wh_bl;
-							sdr_addr  <= {wh_a[27], wh_a[25:2], ~|wh_bh};
-							sdr_dqm   <= |wh_bh ? ~wh_bh : ~wh_bl;
-							sdr_wdat  <= |wh_bh ? wh_dh : wh_dl;
-							sdr_dqm2  <= ~wh_bl;
-							sdr_wdat2 <= wh_dl;
-							if(sp_a == wh_a[28:3]) sp_v <= 0;
-							state     <= 5;
-						end
-						else if(~ram_busy) begin
+						if(~ram_busy) begin
 							ram_be   <= {4'b0000, wh_bl, wh_bh} << {wh_a[2], 2'b00};
 							ram_din  <= {wh_dl, wh_dh, wh_dl, wh_dh};
 							ram_bcnt <= 8'd1;
@@ -703,32 +585,7 @@ always @ (posedge sysclk) begin
 						end
 					end
 					if(rd_sel) begin
-						if(sp_hit) begin
-							ddr_data   <= sp_d[{cpuAddr[2:1], 4'b0000} +:16];
-							dout       <= sp_d;
-							ba         <= cpuAddr[2:1] + 1'd1;
-							cache_fill <= 1;
-							ddr_swap   <= 0;
-							sp_v       <= 0;
-							sp_go      <= 1;
-							sp_n       <= sp_nx_r;
-							sp_last    <= sp_a;
-							state      <= 2;
-						end
-						else if(cpu_sdr) begin
-							sdr_req  <= 1;
-							sdr_we   <= 0;
-							sdr_addr <= {cpuAddr[27], cpuAddr[25:1]};
-							sdr_cnt  <= 0;
-							ddr_swap <= 0;
-							if(~ramshared && (cpu_after_sp || cpu_before_sp)) begin
-								sp_go <= 1;
-								sp_n  <= cpu_after_sp ? cpu_up : cpu_dn;
-							end
-							sp_last  <= cpuAddr[28:3];
-							state    <= 5;
-						end
-						else if(sb_hit) begin
+						if(sb_hit) begin
 							ddr_data   <= sb_d[{cpuAddr[2:1], 4'b0000} +:16];
 							dout       <= sb_d;
 							ba         <= cpuAddr[2:1] + 1'd1;
@@ -736,7 +593,7 @@ always @ (posedge sysclk) begin
 							ddr_swap   <= 0;
 							e_take      = 1;
 							strm_on    <= 1;
-							if(~ram_busy && ~nx_sdr && ~m2_req) begin
+							if(~ram_busy && ~m2_req) begin
 								ram_be   <= 8'hFF;
 								ram_bcnt <= 8'd1;
 								ram_rd   <= 1;
@@ -774,49 +631,16 @@ always @ (posedge sysclk) begin
 						end
 					end
 				end
-			5: if(sdr_ack) begin
-					sdr_req <= 0;
-
-						state   <= sdr_we ? 3'd0 : (sp_on ? 3'd7 : 3'd6);
-				end
-			6: if(sdr_rvalid) begin
-					sdr_cnt <= sdr_cnt + 1'd1;
-					if(dma_read_in_flight) begin
-						if(!sdr_cnt) begin
-							dmaRD        <= sdr_rdat;
-							dma_read_ack <= 1;
-						end
-					end
-					else begin
-						ddr_data   <= sdr_rdat;
-						cache_fill <= 1;
-					end
-					if(&sdr_cnt) begin
-						dma_read_in_flight <= 0;
-						state              <= 0;
-					end
-				end
-			7: if(sdr_rvalid) begin
-					sdr_cnt <= sdr_cnt + 1'd1;
-					sp_d[{sdr_cnt, 4'b0000} +:16] <= sdr_rdat;
-					if(&sdr_cnt) begin
-						sp_on <= 0;
-						sp_v  <= ~sp_kill & ~sp_cpu_wr;
-						state <= 0;
-					end
-				end
 			1: if(ram_dout_ready) begin
 					if (dma_read_in_flight) begin
 						dmaRD              <= ram_dout[{dmaReadBA, 4'b0000} +:16];
 						dma_read_ack       <= 1;
 						dma_read_in_flight <= 0;
 						state              <= 0;
-					end
-						else if (dn_first) begin
-							dn_first <= 0;
-						end
-						else begin
-						ddr_data      <= ram_dout[{ba, 4'b0000} +:16];
+					end else if (dn_first) begin
+						dn_first <= 0;
+					end else begin
+					ddr_data      <= ram_dout[{ba, 4'b0000} +:16];
 					dout          <= ram_dout;
 					cache_fill    <= 1;
 					ba            <= ba + 1'd1;

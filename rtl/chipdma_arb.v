@@ -45,13 +45,6 @@ module chipdma_arb
 	input             z3ram_ena0,
 	input       [3:0] z3ram_base1,
 	input             z3ram_ena1,
-	input       [7:0] z3sdr_base0,
-	input             z3sdr_ena0,
-	input       [7:0] z3sdr_base1,
-	input             z3sdr_ena1,
-	input       [7:0] z3sdr_base2,
-	input             z3sdr_ena2,
-	input             sdram_big,
 
 	output     [28:1] ddr_out_addr,
 	output            ddr_out_l,
@@ -166,13 +159,6 @@ memory_router u_router
 	.z3ram_ena0    (z3ram_ena0),
 	.z3ram_base1   (z3ram_base1),
 	.z3ram_ena1    (z3ram_ena1),
-	.z3sdr_base0   (z3sdr_base0),
-	.z3sdr_ena0    (z3sdr_ena0),
-	.z3sdr_base1   (z3sdr_base1),
-	.z3sdr_ena1    (z3sdr_ena1),
-	.z3sdr_base2   (z3sdr_base2),
-	.z3sdr_ena2    (z3sdr_ena2),
-	.sdram_big     (sdram_big),
 	.ramaddr       (router_ramaddr)
 );
 

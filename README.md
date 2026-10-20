@@ -16,7 +16,7 @@ This version has been modified to add support for MiSTer Floppy, SCP and IPF sup
 * ChipRAM : 0.5MB - 2.0MB
 * SlowRAM : 0.0MB - 1.5MB
 * FastRAM : 0.0MB - 384MB
-* CPU core : 68000, 68010, 68EC020, 68030 (with or without MMU, no FPU)
+* CPU core : 68000, 68010, 68EC020, 68030 (with MMU, no FPU)
 * Kickstart : 1.2, 1.3, 2.0, 3.0, 3.1, 3.1.4, 3.2 (256kB, 512kB & 1MB kickstart ROMs currently supported)
 * HRTmon with custom registers mirror
 * Floppy drives : 1-4 floppies (supports ADF floppy image format), with normal & turbo speeds
@@ -115,26 +115,17 @@ New video modes will appear in ScreenMode preference. For more screen modes use 
 If you want to see RTG video on VGA output, then set vga_scaler=1 in MiSTer.ini.
 RTG is available only for 68030 CPU.
 
-### 68030 CPU
+### 68EC020
 
-The CPU item of the System page offers 68000, 68010, 68EC020, 68030 and 68030 no MMU.
+The 68EC020 of the System page is the CPU of a stock A1200, cycle exact: AIBB and SysInfo give the speed of a real A1200 with no Fast RAM. With the AGA chipset it reads and writes chip RAM 32 bits at a time, as the A1200 does.
 
-* **68EC020** runs at the speed of a stock A1200.
-* **68030** has an MMU and runs at 56.7MHz with no speed limit. There is no FPU.
-* **68030 no MMU** is the same 68030 with the MMU instructions taking the F-line exception, as on a 68020 with no MMU,
-  for software that does not expect an MMU.
+As on the real chip its address bus is 24 bits wide, so its Fast RAM stops at 8MB: 256MB and 384MB need the 68030.
 
-As on the real machines, chip RAM, ROM and the custom registers are always read through the bus, and the data cache is
-switched on and off by software (SetPatch, CPU, WHDLoad).
+### 68030
 
-FastRAM can be none, 2M, 4M or 8M, and with the 68030 also 256M or 384M.
+The 68030 of the System page has its MMU, which stays off until a program uses it, as on the real CPU (NetBSD 9.2 runs on it). There is no FPU.
 
-### Floppy drive sounds
-
-Audio & Video > Drive Sounds plays the sounds of the floppy drives: Off, Quiet, Normal or Loud. It needs
-[drivesounds.bin](https://github.com/MiSTer-devel/Minimig-AGA_MiSTer/raw/MiSTer/releases/drivesounds.bin) in `games/Amiga`
-on the SD card, where the updater puts it. The samples are by Alastair M. Robinson, from
-[MinimigAGA-MiST-TC64](https://github.com/minimig-dev/MinimigAGA-MiST-TC64) (GPL v3).
+68030 Fast runs at full speed. 68030 40MHz runs as fast as a real 68030 card at 40MHz, for the games that need the timing of a real machine: Stunt Car Racer, for one, shows graphic glitches with a faster CPU.
 
 ### IDE and CDROM
 By default up to 2 IDE devices are supported. For Secondary Master/Slave devices, you have to install either IDEFix97 (shareware, WB3.1/3.9) or AtapiMagic (freeware, WB 3.1.4/3.2).
@@ -170,6 +161,10 @@ You have to use appropriate ROM/ExtROM from CD32/CDTV to let AmigaOS recognize C
 CDTV mode is preferred because appropriate updated ROM and ExtROM v3.2 for CDTV are included in AmigaOS 3.2 installation CD.
 Besides original CDTV HW config, you can use up to Amiga 1200 config (68020 + AGA + 2MB ChipRAM + 384MB FastRAM and A1200 KS ROM).
 CD32 official KS 3.1 set of ROMs also work with AmigaOS 3.2 (remember to use IDEFix to access HDD >4GB).
+
+### Floppy drive sounds
+
+The Drive Sounds item of the Audio & Video page plays the sounds of the floppy drives (motor, head steps, disk insert and eject): Off, Quiet, Normal or Loud. It needs [drivesounds.bin](https://github.com/MiSTer-devel/Minimig-AGA_MiSTer/raw/MiSTer/releases/drivesounds.bin) in `games/Amiga` on the SD card; without it the item shows "No file". Only the emulated drives make sounds, not the real drives on the MiSTer floppy adapter. The samples are by Alastair M. Robinson, from [MinimigAGA-MiST-TC64](https://github.com/minimig-dev/MinimigAGA-MiST-TC64) (GPL v3).
 
 ### MIDI
 Supported internal MiSTer emulation and external devices such as MT32-pi or generic MIDI though USER_IO.

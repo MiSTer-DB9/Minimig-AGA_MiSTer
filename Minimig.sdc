@@ -60,9 +60,6 @@ set_false_path -from {*ddram_ctrl*dmaACK_r*}        -to {*chipdma_arb*ddr_in_ack
 
 set_false_path -from {emu|cpu_wrapper|z3ram_*}
 set_false_path -from {emu|cpu_wrapper|z2ram_*}
-set_false_path -from {emu|cpu_wrapper|z3sdr_*}
-set_false_path -from {emu|sdram_big*}
-set_false_path -from {emu|sdram_dual*}
 
 set_false_path -from {emu|minimig|USERIO1|cpu_config*}
 set_false_path -from {emu|minimig|USERIO1|ide_config*}
@@ -87,6 +84,11 @@ set_multicycle_path -from {yc_out|chroma_LUT_BURST[*]} \
 # emu PLL cross-clock: counter[1]→counter[0] marginal path
 set_multicycle_path -setup 2 -from [get_clocks "emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter\[1\].output_counter|divclk"] -to [get_clocks "emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter\[0\].output_counter|divclk"]
 set_multicycle_path -hold 1 -from [get_clocks "emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter\[1\].output_counter|divclk"] -to [get_clocks "emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter\[0\].output_counter|divclk"]
+
+set_multicycle_path -from {emu|cpu_wrapper|cycles|hold} -to {emu|ram*} -setup 1
+set_multicycle_path -from {emu|cpu_wrapper|cycles|hold} -to {emu|ram*} -hold 0
+set_multicycle_path -from {emu|cpu_wrapper|inflight} -to {emu|ram*} -setup 1
+set_multicycle_path -from {emu|cpu_wrapper|inflight} -to {emu|ram*} -hold 0
 
 #these constraints aren't really correct, but help fitting.
 #28MHz pixel clock might be affected when scandoubler fx is used.

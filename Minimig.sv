@@ -423,18 +423,9 @@ hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0)) hps_io
 
 	.RTC(RTC),
 	.gamma_bus(gamma_bus),
-	.sdram_sz(sdram_sz),
 
 	.EXT_BUS(EXT_BUS)
 );
-
-wire [15:0] sdram_sz;
-reg         sdram_big = 0;
-reg         sdram_dual = 0;
-always @(posedge clk_sys) begin
-	sdram_big  <= sdram_sz[15] & sdram_sz[1];
-	sdram_dual <= sdram_sz[15] & (sdram_sz[1:0] == 2'd3);
-end
 
 wire [15:0] ide_din;
 wire [15:0] ide_dout;
@@ -721,11 +712,10 @@ cpu_wrapper cpu_wrapper
 	.fastchip_lw     (fastchip_lw     ),
 
 	.cpucfg       (cpucfg          ),
+	.ntsc         (ntsc            ),
 	.cachecfg     (cachecfg        ),
 	.fastramcfg   (memcfg[6:4]     ),
 	.bootrom      (bootrom         ),
-	.sdram_big    (sdram_big       ),
-	.sdram_dual   (sdram_dual      ),
 
 	.toccata_ena  (toccata_ena     ),
 	.a2065_ena    (a2065_ena       ),
@@ -760,24 +750,12 @@ cpu_wrapper cpu_wrapper
 	.z3ram_ena0   (z3ram_ena0      ),
 	.z3ram_base1  (z3ram_base1     ),
 	.z3ram_ena1   (z3ram_ena1      ),
-	.z3sdr_base0  (z3sdr_base0     ),
-	.z3sdr_ena0   (z3sdr_ena0      ),
-	.z3sdr_base1  (z3sdr_base1     ),
-	.z3sdr_ena1   (z3sdr_ena1      ),
-	.z3sdr_base2  (z3sdr_base2     ),
-	.z3sdr_ena2   (z3sdr_ena2      ),
 	.dcache_sw_en (dcache_sw_en    )
 );
 
 wire        dcache_sw_en;
 
 wire        z2ram_ena;
-wire  [7:0] z3sdr_base0;
-wire        z3sdr_ena0;
-wire  [7:0] z3sdr_base1;
-wire        z3sdr_ena1;
-wire  [7:0] z3sdr_base2;
-wire        z3sdr_ena2;
 wire  [4:0] z3ram_base0;
 wire        z3ram_ena0;
 wire  [3:0] z3ram_base1;
@@ -795,21 +773,6 @@ wire [15:0] dma_ddr_rd;
 wire [15:0] ram_dout1;
 wire        ram_ready1;
 
-wire        sdr_req;
-wire        sdr_we;
-wire [26:1] sdr_addr;
-wire  [1:0] sdr_dqm;
-wire [15:0] sdr_wdat;
-wire        sdr_ack;
-wire        sdr_rvalid;
-wire [15:0] sdr_rdat;
-wire        sdr_w2;
-wire  [1:0] sdr_dqm2;
-wire [15:0] sdr_wdat2;
-
-reg         sdram_big_114 = 0;
-always @(posedge clk_114) sdram_big_114 <= sdram_big;
-
 sdram_ctrl ram1
 (
 	.sysclk       (clk_114         ),
@@ -819,7 +782,6 @@ sdram_ctrl ram1
 	.cache_rst    (cpu_rst         ),
 	.cpu_cache_ctrl(cpu_cacr       ),
 	.dcache_sw_en (dcache_sw_en    ),
-	.sdram_big    (sdram_big_114   ),
 
 	.sd_data      (SDRAM_DQ        ),
 	.sd_addr      (SDRAM_A         ),
@@ -851,19 +813,7 @@ sdram_ctrl ram1
 	.chip48       (chip48          ),
 	.chip32       (arb_chip_long   ),
 	.chipWR2      (arb_chip_wr2    ),
-	.chipRD2      (chip_rd2        ),
-
-	.fast_req     (sdr_req         ),
-	.fast_we      (sdr_we          ),
-	.fast_addr    (sdr_addr        ),
-	.fast_dqm     (sdr_dqm         ),
-	.fast_wdat    (sdr_wdat        ),
-	.fast_w2      (sdr_w2          ),
-	.fast_dqm2    (sdr_dqm2        ),
-	.fast_wdat2   (sdr_wdat2       ),
-	.fast_ack     (sdr_ack         ),
-	.fast_rvalid  (sdr_rvalid      ),
-	.fast_rdat    (sdr_rdat        )
+	.chipRD2      (chip_rd2        )
 );
 
 chipdma_arb chipdma_arb
@@ -911,13 +861,6 @@ chipdma_arb chipdma_arb
 	.z3ram_ena0      (z3ram_ena0           ),
 	.z3ram_base1     (z3ram_base1          ),
 	.z3ram_ena1      (z3ram_ena1           ),
-	.z3sdr_base0     (z3sdr_base0          ),
-	.z3sdr_ena0      (z3sdr_ena0           ),
-	.z3sdr_base1     (z3sdr_base1          ),
-	.z3sdr_ena1      (z3sdr_ena1           ),
-	.z3sdr_base2     (z3sdr_base2          ),
-	.z3sdr_ena2      (z3sdr_ena2           ),
-	.sdram_big       (sdram_big            ),
 
 	.ddr_out_addr    (dma_ddr_addr         ),
 	.ddr_out_l       (dma_ddr_l            ),
@@ -984,20 +927,7 @@ ddram_ctrl ram2
 	.dmaU         (dma_ddr_u       ),
 	.dmaWR        (dma_ddr_wr      ),
 	.dmaRD        (dma_ddr_rd      ),
-	.dmaACK       (dma_ddr_ack     ),
-
-	.sdr_hi       (z3sdr_ena1      ),
-	.sdr_req      (sdr_req         ),
-	.sdr_we       (sdr_we          ),
-	.sdr_addr     (sdr_addr        ),
-	.sdr_dqm      (sdr_dqm         ),
-	.sdr_wdat     (sdr_wdat        ),
-	.sdr_w2       (sdr_w2          ),
-	.sdr_dqm2     (sdr_dqm2        ),
-	.sdr_wdat2    (sdr_wdat2       ),
-	.sdr_ack      (sdr_ack         ),
-	.sdr_rvalid   (sdr_rvalid      ),
-	.sdr_rdat     (sdr_rdat        )
+	.dmaACK       (dma_ddr_ack     )
 );
 
 ////////////////////////////  A2065 ETHERNET  ///////////////////////////////
@@ -1160,7 +1090,7 @@ assign UART_TXD = (hps_mpu & mt32_use) | uart_tx;
 ///////////////////////////////////////////////////////////////////////
 
 //// minimig top ////
-wire  [2:0] cpucfg;
+wire  [4:0] cpucfg;
 wire  [2:0] cachecfg;
 wire  [6:0] memcfg;
 wire        bootrom;   
